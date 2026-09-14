@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Home PT Coach",
+    "slug": "home-pt-coach",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMotionUsageDescription": "Home PT Coach uses the motion sensors to see how far you move your arm during each exercise, so it can tell you when you've done it correctly."
+      },
+      "bundleIdentifier": "com.anonymous.homeptcoach"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.homeptcoach"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
