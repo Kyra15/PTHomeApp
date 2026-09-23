@@ -68,17 +68,18 @@ you've filled these in, rather than trying to just "work faster" to compensate.
 
 `TODO (you): AI should ask you directly, but hasn't had the chance to yet — here's what would
 sharpen the estimates if you answer it:`
-- Prior experience with **Swift/SwiftUI**: none / some / comfortable?
-- Prior experience with **Python/FastAPI** (or any backend framework): none / some / comfortable?
-- Prior experience with **React** (for the admin web portal): none / some / comfortable?
+- Prior experience with **React / React Native**: none / some / comfortable?
+- Prior experience with **Python/Flask** (or any backend framework): none / some / comfortable?
+- Have you built or debugged a **native module bridge** in React Native before (relevant to
+  task 2.4's sensor access)? none / some / comfortable?
 - Have you used **Supabase** (or any Postgres-backed BaaS) before?
 
 Until answered, the plan assumes a **motivated beginner-to-intermediate** developer working
 with heavy AI assistance — i.e., the 70% efficiency factor above is already generous toward
-"first time doing this," not toward "experienced iOS engineer." If you're more experienced than
-that, you likely have real slack in this plan; if you're newer to all three of Swift, Python,
-and React simultaneously, flag that and the estimates for Milestone 2 in particular (the
-Core Motion / rep-counting work) should probably grow, not shrink.
+"first time doing this," not toward "experienced RN engineer." If you're more experienced than
+that, you likely have real slack in this plan; if you're newer to React Native, Python, and
+native-module bridging all at once, flag that — the estimates for Milestone 2 (especially task
+2.4's sensor bridge) should probably grow, not shrink.
 
 ## 6. Assumptions this file makes that aren't yet confirmed data
 

@@ -9,26 +9,38 @@ sized against the ~125–135 effective hours calculated in `availability.md` §4
 Two source docs disagreed with each other, so these had to be resolved before tasks could be
 sized. Revisit if they're wrong:
 
-1. **Mobile client:** `system_architecture_document.md` suggests React Native/Flutter;
-   `README.md` and `mvp.md` both say native iOS (Swift/SwiftUI), since real-time Core Motion
-   access and the explicit "Android is out of scope" decision only make sense for a native
-   client. **This plan assumes native Swift/SwiftUI**, not React Native/Flutter.
-2. **Backend:** treated `system_architecture_document.md`'s Supabase (Postgres + RLS) + FastAPI
-   design as the decided backend, since `README.md` marks backend as "not yet decided" but the
-   architecture doc is a complete, specific design. Hosting provider for the FastAPI service is
-   still open — this plan assumes a low-cost/free-tier host (e.g., Railway or Render); swap in
-   whatever you actually pick.
+1. **Mobile client: React Native** (per your direction — updated from the earlier native
+   Swift/SwiftUI assumption). `README.md` and `mvp.md` scoped a native app specifically because
+   real-time Core Motion access was assumed to need one; with React Native, accelerometer/
+   gyroscope access instead goes through a bridge library (e.g. `react-native-sensors`) or a
+   small custom native module if the library can't hit the needed sample rate reliably. This is
+   now the single biggest technical risk in the plan — see the updated F05 note below. iOS is
+   still the only target platform for MVP (per `mvp.md`'s explicit Android exclusion); React
+   Native doesn't change that scope, it just leaves the codebase positioned to add Android later
+   without a rewrite.
+2. **Backend: Flask** (per your direction — updated from FastAPI). Still Python, still talking
+   to the same Supabase Postgres + RLS design from `system_architecture_document.md`. One real
+   consequence: Flask has no built-in async task runner the way FastAPI does, so the scheduled
+   reminder job (F06) is planned around **APScheduler running in-process** rather than
+   Celery+Redis — enough for MVP scale without adding infrastructure to operate. Hosting
+   provider is still open — this plan assumes a low-cost/free-tier host (e.g., Railway or
+   Render); swap in whatever you actually pick.
 3. **Billing/subscriptions:** the architecture doc includes a Billing Service (Stripe/App
    Store) and a `subscriptions` table, but no MVP feature (F01–F13) requires it. **Cut from this
    plan entirely** — it's post-MVP scope creep relative to `mvp.md`.
 4. **Push notifications:** iOS-only means **APNs only**; the architecture doc's FCM path is
    unused for MVP.
-5. **F05 (motion tracking) is the highest-risk task in the whole plan.** Real-time rep counting,
-   ROM measurement, and form-deviation detection from raw accelerometer/gyroscope data is a
-   genuine signal-processing problem, not a CRUD feature. To keep it achievable in the time
-   available, this plan scopes the *first* working version to **2–3 exercise types** with
-   hand-tuned thresholds (peak detection on a filtered signal), not a general solution that
-   works for any exercise. Expanding exercise coverage is explicitly left for after MVP.
+5. **F05 (motion tracking) is the highest-risk task in the whole plan — more so now.** On top of
+   the underlying signal-processing problem (rep counting, ROM measurement, form-deviation
+   detection from raw sensor data), React Native adds a second risk layer: getting
+   high-frequency (50–100Hz) accelerometer/gyroscope data across the JS bridge reliably. Task
+   2.4 now starts with evaluating `react-native-sensors` (or similar) against the real target
+   device *before* building the rep-counting algorithm on top of it — if it can't sustain the
+   needed sample rate, the fallback is a small custom native Swift module that just forwards
+   Core Motion data into JS, which is more setup work but removes the reliability risk. Either
+   way, this plan still scopes the *first* working version to **2–3 exercise types** with
+   hand-tuned thresholds, not a general solution. Expanding exercise/algorithm coverage is left
+   for after MVP.
 
 ## 1. Milestones
 
@@ -45,29 +57,29 @@ sized. Revisit if they're wrong:
 Effort is in focused hours (i.e., already assumes the 70% efficiency factor from
 `availability.md` — these are hours of actual output, not hours sitting at the desk).
 
-### Milestone 1 — Foundation & Infrastructure (Sept 28 – Oct 16, ~31h)
+### Milestone 1 — Foundation & Infrastructure (Sept 28 – Oct 16, ~32h)
 
 | Task | Effort | Depends on | Target date | Features | Definition of done |
 |---|---|---|---|---|---|
 | 1.1 Confirm architecture decisions | 2h | — | 9/29 | infra | §0 decisions above are accepted (or revised) and recorded in `system_architecture_document.md`; nothing blocking setup is still undecided. |
 | 1.2 Repo structure (`ios/`, `backend/`, `admin-web/`, `docs/`) | 2h | 1.1 | 9/29 | infra | Repo pushed with the folder structure in place and this plan committed under `docs/project-plan/`. |
 | 1.3 Apple Developer Program enrollment | 1h active (+ up to 48h approval wait) | — | 9/30 (start immediately — longest lead time item) | infra | Account approved, Team ID available for Xcode signing. |
-| 1.4 Xcode project scaffold | 3h | 1.3 (can start before approval finishes) | 10/2 | infra | Blank SwiftUI app builds and runs on simulator/device. |
+| 1.4 React Native project scaffold (iOS target) | 4h | 1.3 (can start before approval finishes) | 10/2 | infra | Blank RN app builds and runs on the iOS simulator via Xcode/CocoaPods; Metro bundler and dev workflow confirmed working. |
 | 1.5 Supabase project + core schema + RLS | 5h | 1.1 | 10/6 | all | `users`, `health_profiles`, `exercises`, `plans`, `exercise_logs` tables exist with RLS policies; a test patient row is visible to itself and to a therapist role, not to a different patient. |
-| 1.6 FastAPI skeleton, deployed | 4h | 1.5 | 10/9 | infra | `/health` returns 200 from a public URL; connects to Supabase successfully. |
+| 1.6 Flask skeleton, deployed | 4h | 1.5 | 10/9 | infra | `/health` returns 200 from a public URL; connects to Supabase successfully; app-factory structure in place so routes aren't all in one file. |
 | 1.7 Auth end-to-end (F01, F02) | 6h | 1.4, 1.6 | 10/13 | F01, F02 | Patient signs in from the iPhone app and reaches an empty dashboard; admin signs in on web and reaches an empty roster. |
 | 1.8 Admin web portal scaffold, deployed | 4h | 1.1 | 10/13 | infra | Admin portal live at a URL; shows the sign-in screen. |
 | 1.9 APNs push certificate + test send | 2h | 1.3 | 10/16 | F06 | A manually triggered test push is received on a real or simulator device. |
 | 1.10 Milestone review / buffer | 2h | all above | 10/16 | — | Every M1 row above is checked off; anything unfinished is explicitly rescheduled into M2, not silently dropped. |
 
-### Milestone 2 — Core Patient Experience (Oct 19 – Nov 13, ~48h)
+### Milestone 2 — Core Patient Experience (Oct 19 – Nov 13, ~49h)
 
 | Task | Effort | Depends on | Target date | Features | Definition of done |
 |---|---|---|---|---|---|
 | 2.1 Home Dashboard UI | 5h | 1.7 | 10/23 | F03 | Dashboard renders real data (today's exercises, streak, quick stats) from a manually seeded test plan; shows the correct empty state with no program assigned. |
 | 2.2 Scheduled delivery logic | 4h | 1.5, 1.6 | 10/25 | F04 | API returns the correct exercise list for a given patient/day, verified against 3 different test schedules. |
 | 2.3 Exercise player shell (pre-exercise screen) | 5h | 2.1 | 10/28 | F05 | Instructions screen shows demo placeholder, target sets/reps, and a phone-positioning tip, and transitions into a session on "Start Exercise." |
-| 2.4 Core Motion sensor capture | 8h | 2.3 | 11/3 | F05 | Accelerometer + gyroscope stream is captured and visible (console/log) at the target sample rate during a live test session; pause/resume on backgrounding works. |
+| 2.4 Sensor capture via RN bridge | 9h | 2.3 | 11/3 | F05 | Library (e.g. `react-native-sensors`) evaluated against target sample rate on a real device — decision recorded, custom native module fallback used if it can't keep up; accelerometer + gyroscope stream captured and visible (console/log) at the target rate during a live session; pause/resume on backgrounding works. |
 | 2.5 Rep counting & ROM algorithm | 10h | 2.4 | 11/8 | F05 | For 2–3 chosen exercise types (see §0.5), rep count is accurate within ±1 across 5 test runs each, and a per-rep ROM angle is computed and displayed. |
 | 2.6 Live form feedback + session summary | 5h | 2.5 | 11/10 | F05 | "Good form"/"Adjust position" indicator updates live; session summary (reps, avg ROM, form score, duration) is shown and POSTed to `exercise_logs`. |
 | 2.7 Push reminders + streak-at-risk (F06) | 5h | 1.9, 2.2 | 11/12 | F06 | Test patient receives a standard reminder if the day's session is incomplete, and a distinct streak-at-risk push if they have an active streak. |
@@ -104,9 +116,13 @@ and rehearsal only, per the assignment's instruction not to schedule work throug
 
 ## 3. Total effort check
 
-M1 (~31h) + M2 (~48h) + M3 (~37h) + M4 (~15h) = **~131 focused hours**, against the **~125–135
-effective hours** budgeted in `availability.md` §4 — a tight but workable match. There is
-essentially **no slack**: if any `TODO (you)` item in `availability.md` §3 turns out to reduce
-available hours (a college visit week, a field trip), that time has to come out of scope, most
-likely by cutting M4's contingency buffer first, then narrowing F05's exercise coverage in §0.5,
-rather than by trying to compress M2 or M3's core build time.
+M1 (~32h) + M2 (~49h) + M3 (~37h) + M4 (~15h) = **~133 focused hours**, against the **~125–135
+effective hours** budgeted in `availability.md` §4 — an even tighter match than before, since
+moving to React Native added a little effort (and real risk) to task 2.4 without removing
+anything elsewhere. There is essentially **no slack**: if any `TODO (you)` item in
+`availability.md` §3 turns out to reduce available hours (a college visit week, a field trip),
+or if 2.4's sensor-bridge evaluation forces the custom-native-module fallback, that time has to
+come out of scope — most likely by cutting M4's contingency buffer first, then narrowing F05's
+exercise coverage in §0.5, rather than by trying to compress M2 or M3's core build time. Given
+the added risk, it's worth doing 2.4's library evaluation as early as possible so any fallback
+is known well before M2's deadline, not discovered late.
