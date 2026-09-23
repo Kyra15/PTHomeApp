@@ -61,16 +61,14 @@ Effort is in focused hours (i.e., already assumes the 70% efficiency factor from
 
 | Task | Effort | Depends on | Target date | Features | Definition of done |
 |---|---|---|---|---|---|
-| 1.1 Confirm architecture decisions | 2h | — | 9/29 | infra | §0 decisions above are accepted (or revised) and recorded in `system_architecture_document.md`; nothing blocking setup is still undecided. |
-| 1.2 Repo structure (`ios/`, `backend/`, `admin-web/`, `docs/`) | 2h | 1.1 | 9/29 | infra | Repo pushed with the folder structure in place and this plan committed under `docs/project-plan/`. |
-| 1.3 Apple Developer Program enrollment | 1h active (+ up to 48h approval wait) | — | 9/30 (start immediately — longest lead time item) | infra | Account approved, Team ID available for Xcode signing. |
-| 1.4 React Native project scaffold (iOS target) | 4h | 1.3 (can start before approval finishes) | 10/2 | infra | Blank RN app builds and runs on the iOS simulator via Xcode/CocoaPods; Metro bundler and dev workflow confirmed working. |
-| 1.5 Supabase project + core schema + RLS | 5h | 1.1 | 10/6 | all | `users`, `health_profiles`, `exercises`, `plans`, `exercise_logs` tables exist with RLS policies; a test patient row is visible to itself and to a therapist role, not to a different patient. |
-| 1.6 Flask skeleton, deployed | 4h | 1.5 | 10/9 | infra | `/health` returns 200 from a public URL; connects to Supabase successfully; app-factory structure in place so routes aren't all in one file. |
-| 1.7 Auth end-to-end (F01, F02) | 6h | 1.4, 1.6 | 10/13 | F01, F02 | Patient signs in from the iPhone app and reaches an empty dashboard; admin signs in on web and reaches an empty roster. |
-| 1.8 Admin web portal scaffold, deployed | 4h | 1.1 | 10/13 | infra | Admin portal live at a URL; shows the sign-in screen. |
-| 1.9 APNs push certificate + test send | 2h | 1.3 | 10/16 | F06 | A manually triggered test push is received on a real or simulator device. |
-| 1.10 Milestone review / buffer | 2h | all above | 10/16 | — | Every M1 row above is checked off; anything unfinished is explicitly rescheduled into M2, not silently dropped. |
+| 1.1 Repo structure (`ios/`, `backend/`, `admin-web/`, `docs/`) | 2h | 1.1 | 9/29 | infra | Repo pushed with the folder structure in place and this plan committed under `docs/project-plan/`. |
+| 1.2 React Native project scaffold (iOS target) | 4h | 1.3 (can start before approval finishes) | 10/2 | infra | Blank RN app builds and runs on the iOS simulator via Xcode/CocoaPods; Metro bundler and dev workflow confirmed working. |
+| 1.3 Supabase project + core schema + RLS | 5h | 1.1 | 10/6 | all | `users`, `health_profiles`, `exercises`, `plans`, `exercise_logs` tables exist with RLS policies; a test patient row is visible to itself and to a therapist role, not to a different patient. |
+| 1.4 Flask skeleton, deployed | 4h | 1.5 | 10/9 | infra | `/health` returns 200 from a public URL; connects to Supabase successfully; app-factory structure in place so routes aren't all in one file. |
+| 1.5 Auth end-to-end (F01, F02) | 6h | 1.4, 1.6 | 10/13 | F01, F02 | Patient signs in from the iPhone app and reaches an empty dashboard; admin signs in on web and reaches an empty roster. |
+| 1.6 Admin web portal scaffold, deployed | 4h | 1.1 | 10/13 | infra | Admin portal live at a URL; shows the sign-in screen. |
+| 1.7 APNs push certificate + test send | 2h | 1.3 | 10/16 | F06 | A manually triggered test push is received on a real or simulator device. |
+| 1.8 Milestone review / buffer | 2h | all above | 10/16 | — | Every M1 row above is checked off; anything unfinished is explicitly rescheduled into M2, not silently dropped. |
 
 ### Milestone 2 — Core Patient Experience (Oct 19 – Nov 13, ~49h)
 
