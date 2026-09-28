@@ -1,5 +1,12 @@
+export type AuthStackParamList = {
+  Welcome: undefined;
+  SignIn: undefined;
+  SignUp: undefined;
+};
+
 export type RootStackParamList = {
-  Home: undefined;
+  Dashboard: undefined;
+  Home: undefined; // demo exercise list from the prototype
   Exercise: { exerciseId: string };
   Complete: { exerciseId: string; reps: number };
 };

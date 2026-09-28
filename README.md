@@ -61,9 +61,13 @@ Requires Node.js and npm. Building for the iOS simulator also needs a Mac with X
 
 ```bash
 npm install
-npx expo start        # dev server
-npx expo run:ios      # build and launch in the iOS simulator (Mac + Xcode only)
+cp .env.example .env.local   # then fill in your Supabase URL and publishable key
+npx expo start --clear       # dev server (restart it after changing .env.local)
+npx expo run:ios             # build and launch in the iOS simulator (Mac + Xcode only)
 ```
+
+The app uses the Supabase **publishable** key (`sb_publishable_...`), which is safe to ship in the app.
+Never put the `sb_secret_...` key in the app.
 
 ### Backend (Flask)
 
@@ -83,7 +87,7 @@ never commit it or put it in the app.
 
 ### Database (Supabase)
 
-Run `backend/supabase/migrations/0001_core_schema.sql` in the Supabase SQL Editor, then run
+Run each file in `backend/supabase/migrations/` in order (`0001`, then `0002`) in the Supabase SQL Editor, then run
 `backend/supabase/tests_rls.sql` to check the access rules. Every row it returns should show
 `passed = true`.
 
