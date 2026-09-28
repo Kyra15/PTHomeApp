@@ -12,13 +12,13 @@ assumes the defaults stated next to each TODO.**
 
 | Item | Date | Note |
 |---|---|---|
-| Plan generated | 2026-09-23 | |
-| Project start date | **Monday, Sept 28, 2026** | Per assignment instructions: start = Monday of the coming week. |
+| Plan generated | 2026-09-23 | Rescheduled on 2026-09-28 to start Sept 21. |
+| Project start date | **Monday, Sept 21, 2026** | Moved up one week from the original Sept 28 start; every task and milestone date was shifted accordingly. |
 | Target deadline | **3rd week of December 2026 (Dec 14–18)** | Assumed demo/submission day: **Thursday, Dec 17, 2026**. `TODO (you): replace with your actual assignment due date once known.` |
 | Development cutoff | **Friday, Dec 11, 2026** | No new feature work scheduled after this date — see §5. |
 | Demo-prep buffer window | **Dec 14–18, 2026** | Reserved for deployment stability, seed data, rehearsal — not new development. |
 
-Total window: **~11.5 weeks of development** (Sept 28 → Dec 11) + **1 buffer week**.
+Total window: **~12.5 weeks of development** (Sept 21 → Dec 11) + **1 buffer week**.
 
 ## 2. School holiday calendar
 
@@ -27,7 +27,7 @@ Total window: **~11.5 weeks of development** (Sept 28 → Dec 11) + **1 buffer w
   break dates and edit if different.`
 - No other school breaks are assumed to fall before Dec 18 (winter break normally starts after
   this window). `TODO (you): confirm there's no early dismissal / in-service days / other
-  district holidays between 9/28 and 12/18.`
+  district holidays between 9/21 and 12/18.`
 
 ## 3. Personal days, sick days, and reduced-capacity periods
 
@@ -60,8 +60,8 @@ you've filled these in, rather than trying to just "work faster" to compensate.
   effort estimates themselves.
 - **Effective usable capacity: ~12.5 hours/week** during full-capacity weeks, ~half that during
   the Thanksgiving week.
-- **Total effective hours across the dev window (Sept 28 – Dec 11, 11 weeks, 1 reduced for
-  Thanksgiving):** roughly **125–135 hours** — this is the real budget `project-plan.md` is
+- **Total effective hours across the dev window (Sept 21 – Dec 11, 12 weeks, 1 reduced for
+  Thanksgiving):** roughly **137–147 hours** — this is the real budget `project-plan.md` is
   sized against.
 
 ## 5. Developer capability context

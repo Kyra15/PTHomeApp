@@ -33,37 +33,80 @@ remotely.
 See [`docs/mvp.md`](./docs/mvp.md) for the full MVP scope, the complete feature list, and what
 is explicitly excluded from this first release.
 
-## Platform (Planned)
+## Tech Stack
 
-This section describes current intentions for what the system will be built and run on. None
-of it has been built or verified yet — it will be updated as real decisions are made and
-implementation begins.
+| Piece | Choice | Status |
+|---|---|---|
+| Patient app | React Native (Expo), iOS-only for the MVP | Prototype exists in the repo root |
+| Backend | Flask (Python), deployed on Render | Skeleton with `/health` built |
+| Database & auth | Supabase (Postgres + Row Level Security) | Core schema and RLS policies written |
+| Admin portal | Web app (planned: React) | Placeholder folder only |
+| Push notifications | Apple Push Notification service (APNs) | Not started |
 
-- **Patient app:** Native iOS (Swift/SwiftUI). Real-time accelerometer/gyroscope tracking
-  depends on Apple's Core Motion framework, which requires a native iOS app.
-- **Admin portal:** A web application (planned: React), used by nurses/clinical staff on a
-  desktop or tablet browser.
-- **Push notifications:** Apple Push Notification service (APNs), planned.
-- **Backend & data storage:** Not yet decided. Will need to support patient/admin accounts,
-  program and schedule data, session summaries, and notification delivery. Hosting provider is
-  also not yet decided. Given this app handles personal health information, backend and hosting
-  choices will need to account for that (e.g., HIPAA-aware handling) — this has not been
-  designed yet.
+Because the app handles personal health information, backend and hosting choices will need
+HIPAA-aware handling. That has not been designed yet.
+
+## Project Status
+
+Foundation tasks 1.1–1.4 are done: repo structure, React Native app, Supabase schema with RLS,
+and a Flask skeleton. The schedule and remaining tasks are in
+[`docs/project-plan/`](./docs/project-plan/) (project start: Monday, Sept 21, 2026; demo the
+week of Dec 14).
 
 ## Development Setup
 
-No application code has been written yet. This repository currently contains product
-documentation and design specifications only (see `docs/`). Build and run instructions will be
-added here once the iOS project and admin portal codebases exist and have been verified to
-actually build and run — this section intentionally does not include invented setup commands.
+### Patient app (iOS)
+
+Requires Node.js and npm. Building for the iOS simulator also needs a Mac with Xcode.
+
+```bash
+npm install
+npx expo start        # dev server
+npx expo run:ios      # build and launch in the iOS simulator (Mac + Xcode only)
+```
+
+### Backend (Flask)
+
+Requires Python 3.12. Full details in [`backend/README.md`](./backend/README.md).
+
+```bash
+cd backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env      # fill in SUPABASE_URL and SUPABASE_SECRET_KEY
+flask --app wsgi run      # http://127.0.0.1:5000/health
+pytest
+```
+
+`SUPABASE_SECRET_KEY` is the `sb_secret_...` key from your Supabase project. Keep it private:
+never commit it or put it in the app.
+
+### Database (Supabase)
+
+Run `backend/supabase/migrations/0001_core_schema.sql` in the Supabase SQL Editor, then run
+`backend/supabase/tests_rls.sql` to check the access rules. Every row it returns should show
+`passed = true`.
 
 ## Repository Structure
 
 ```
-your-project-root/
-├── README.md
+.
+├── App.tsx, index.ts, app.json, package.json   # React Native (Expo) patient app
+├── src/                    # app screens, components, hooks, navigation, theme
+├── assets/                 # icons and sounds
+├── backend/                # Flask API
+│   ├── app/                #   app factory, config, routes
+│   ├── supabase/           #   SQL migrations and RLS tests
+│   ├── tests/              #   pytest tests
+│   └── render.yaml         #   Render deployment config
+├── admin-web/              # admin portal (placeholder)
+├── todo.md
 └── docs/
-    ├── mvp.md            # MVP scope, feature list, and what's excluded
-    ├── features.md       # Full spec for every MVP feature
-    └── user-flows.md      # Step-by-step user journeys through the app
+    ├── mvp.md              # MVP scope, feature list, and what's excluded
+    ├── features.md         # full spec for every MVP feature
+    ├── user-flows.md       # step-by-step user journeys
+    ├── system_architecture/
+    ├── mockups/
+    ├── pitch/
+    └── project-plan/       # plan, tasks.csv, availability, tracking setup
 ```
