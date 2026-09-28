@@ -1,0 +1,366 @@
+From c988a5dc24ebbe6327e76ac5050478cb3fd4920f Mon Sep 17 00:00:00 2001
+From: Kyra15 <x@x>
+Date: Mon, 28 Sep 2026 03:29:17 +0000
+Subject: [PATCH] Start project Sept 21: shift schedule 7 days earlier; update
+ README
+
+---
+ README.md                         | 93 ++++++++++++++++++++++---------
+ docs/project-plan/availability.md | 12 ++--
+ docs/project-plan/project-plan.md | 91 +++++++++++++++---------------
+ docs/project-plan/tasks.csv       | 58 +++++++++----------
+ 4 files changed, 150 insertions(+), 104 deletions(-)
+
+diff --git a/README.md b/README.md
+index 55b9fc0..bb0a294 100644
+--- a/README.md
++++ b/README.md
+@@ -33,37 +33,80 @@ remotely.
+ See [`docs/mvp.md`](./docs/mvp.md) for the full MVP scope, the complete feature list, and what
+ is explicitly excluded from this first release.
+ 
+-## Platform (Planned)
+-
+-This section describes current intentions for what the system will be built and run on. None
+-of it has been built or verified yet — it will be updated as real decisions are made and
+-implementation begins.
+-
+-- **Patient app:** Native iOS (Swift/SwiftUI). Real-time accelerometer/gyroscope tracking
+-  depends on Apple's Core Motion framework, which requires a native iOS app.
+-- **Admin portal:** A web application (planned: React), used by nurses/clinical staff on a
+-  desktop or tablet browser.
+-- **Push notifications:** Apple Push Notification service (APNs), planned.
+-- **Backend & data storage:** Not yet decided. Will need to support patient/admin accounts,
+-  program and schedule data, session summaries, and notification delivery. Hosting provider is
+-  also not yet decided. Given this app handles personal health information, backend and hosting
+-  choices will need to account for that (e.g., HIPAA-aware handling) — this has not been
+-  designed yet.
++## Tech Stack
++
++| Piece | Choice | Status |
++|---|---|---|
++| Patient app | React Native (Expo), iOS-only for the MVP | Prototype exists in the repo root |
++| Backend | Flask (Python), deployed on Render | Skeleton with `/health` built |
++| Database & auth | Supabase (Postgres + Row Level Security) | Core schema and RLS policies written |
++| Admin portal | Web app (planned: React) | Placeholder folder only |
++| Push notifications | Apple Push Notification service (APNs) | Not started |
++
++Because the app handles personal health information, backend and hosting choices will need
++HIPAA-aware handling. That has not been designed yet.
++
++## Project Status
++
++Foundation tasks 1.1–1.4 are done: repo structure, React Native app, Supabase schema with RLS,
++and a Flask skeleton. The schedule and remaining tasks are in
++[`docs/project-plan/`](./docs/project-plan/) (project start: Monday, Sept 21, 2026; demo the
++week of Dec 14).
+ 
+ ## Development Setup
+ 
+-No application code has been written yet. This repository currently contains product
+-documentation and design specifications only (see `docs/`). Build and run instructions will be
+-added here once the iOS project and admin portal codebases exist and have been verified to
+-actually build and run — this section intentionally does not include invented setup commands.
++### Patient app (iOS)
++
++Requires Node.js and npm. Building for the iOS simulator also needs a Mac with Xcode.
++
++```bash
++npm install
++npx expo start        # dev server
++npx expo run:ios      # build and launch in the iOS simulator (Mac + Xcode only)
++```
++
++### Backend (Flask)
++
++Requires Python 3.12. Full details in [`backend/README.md`](./backend/README.md).
++
++```bash
++cd backend
++python3 -m venv .venv && source .venv/bin/activate
++pip install -r requirements.txt
++cp .env.example .env      # fill in SUPABASE_URL and SUPABASE_SECRET_KEY
++flask --app wsgi run      # http://127.0.0.1:5000/health
++pytest
++```
++
++`SUPABASE_SECRET_KEY` is the `sb_secret_...` key from your Supabase project. Keep it private:
++never commit it or put it in the app.
++
++### Database (Supabase)
++
++Run `backend/supabase/migrations/0001_core_schema.sql` in the Supabase SQL Editor, then run
++`backend/supabase/tests_rls.sql` to check the access rules. Every row it returns should show
++`passed = true`.
+ 
+ ## Repository Structure
+ 
+ ```
+-your-project-root/
+-├── README.md
++.
++├── App.tsx, index.ts, app.json, package.json   # React Native (Expo) patient app
++├── src/                    # app screens, components, hooks, navigation, theme
++├── assets/                 # icons and sounds
++├── backend/                # Flask API
++│   ├── app/                #   app factory, config, routes
++│   ├── supabase/           #   SQL migrations and RLS tests
++│   ├── tests/              #   pytest tests
++│   └── render.yaml         #   Render deployment config
++├── admin-web/              # admin portal (placeholder)
++├── todo.md
+ └── docs/
+-    ├── mvp.md            # MVP scope, feature list, and what's excluded
+-    ├── features.md       # Full spec for every MVP feature
+-    └── user-flows.md      # Step-by-step user journeys through the app
++    ├── mvp.md              # MVP scope, feature list, and what's excluded
++    ├── features.md         # full spec for every MVP feature
++    ├── user-flows.md       # step-by-step user journeys
++    ├── system_architecture/
++    ├── mockups/
++    ├── pitch/
++    └── project-plan/       # plan, tasks.csv, availability, tracking setup
+ ```
+diff --git a/docs/project-plan/availability.md b/docs/project-plan/availability.md
+index 2ad2a71..b651d17 100644
+--- a/docs/project-plan/availability.md
++++ b/docs/project-plan/availability.md
+@@ -12,13 +12,13 @@ assumes the defaults stated next to each TODO.**
+ 
+ | Item | Date | Note |
+ |---|---|---|
+-| Plan generated | 2026-09-23 | |
+-| Project start date | **Monday, Sept 28, 2026** | Per assignment instructions: start = Monday of the coming week. |
++| Plan generated | 2026-09-23 | Rescheduled on 2026-09-28 to start Sept 21. |
++| Project start date | **Monday, Sept 21, 2026** | Moved up one week from the original Sept 28 start; every task and milestone date was shifted accordingly. |
+ | Target deadline | **3rd week of December 2026 (Dec 14–18)** | Assumed demo/submission day: **Thursday, Dec 17, 2026**. `TODO (you): replace with your actual assignment due date once known.` |
+ | Development cutoff | **Friday, Dec 11, 2026** | No new feature work scheduled after this date — see §5. |
+ | Demo-prep buffer window | **Dec 14–18, 2026** | Reserved for deployment stability, seed data, rehearsal — not new development. |
+ 
+-Total window: **~11.5 weeks of development** (Sept 28 → Dec 11) + **1 buffer week**.
++Total window: **~12.5 weeks of development** (Sept 21 → Dec 11) + **1 buffer week**.
+ 
+ ## 2. School holiday calendar
+ 
+@@ -27,7 +27,7 @@ Total window: **~11.5 weeks of development** (Sept 28 → Dec 11) + **1 buffer w
+   break dates and edit if different.`
+ - No other school breaks are assumed to fall before Dec 18 (winter break normally starts after
+   this window). `TODO (you): confirm there's no early dismissal / in-service days / other
+-  district holidays between 9/28 and 12/18.`
++  district holidays between 9/21 and 12/18.`
+ 
+ ## 3. Personal days, sick days, and reduced-capacity periods
+ 
+@@ -60,8 +60,8 @@ you've filled these in, rather than trying to just "work faster" to compensate.
+   effort estimates themselves.
+ - **Effective usable capacity: ~12.5 hours/week** during full-capacity weeks, ~half that during
+   the Thanksgiving week.
+-- **Total effective hours across the dev window (Sept 28 – Dec 11, 11 weeks, 1 reduced for
+-  Thanksgiving):** roughly **125–135 hours** — this is the real budget `project-plan.md` is
++- **Total effective hours across the dev window (Sept 21 – Dec 11, 12 weeks, 1 reduced for
++  Thanksgiving):** roughly **137–147 hours** — this is the real budget `project-plan.md` is
+   sized against.
+ 
+ ## 5. Developer capability context
+diff --git a/docs/project-plan/project-plan.md b/docs/project-plan/project-plan.md
+index 733b303..797acdc 100644
+--- a/docs/project-plan/project-plan.md
++++ b/docs/project-plan/project-plan.md
+@@ -46,10 +46,10 @@ sized. Revisit if they're wrong:
+ 
+ | # | Milestone | Target date | What it proves |
+ |---|---|---|---|
+-| M1 | Foundation & Infrastructure Ready | **Fri, Oct 16, 2026** | Accounts, repo, database, backend, and both app shells exist and a user can sign in. |
+-| M2 | Core Patient Experience Functional | **Fri, Nov 13, 2026** | A patient can complete a real motion-tracked exercise session end to end. |
+-| M3 | Admin Portal & Data Loop Complete | **Fri, Dec 4, 2026** | An admin can assign a program, and review the data a patient's session produced. |
+-| M4 | Polish & Demo Readiness | **Fri, Dec 11, 2026** (dev cutoff) | The whole system is stable enough to demo live. |
++| M1 | Foundation & Infrastructure Ready | **Fri, Oct 9, 2026** | Accounts, repo, database, backend, and both app shells exist and a user can sign in. |
++| M2 | Core Patient Experience Functional | **Fri, Nov 6, 2026** | A patient can complete a real motion-tracked exercise session end to end. |
++| M3 | Admin Portal & Data Loop Complete | **Wed, Dec 2, 2026** | An admin can assign a program, and review the data a patient's session produced. |
++| M4 | Polish & Demo Readiness | **Tue, Dec 8, 2026** (dev cutoff remains Fri, Dec 11) | The whole system is stable enough to demo live. |
+ | — | Buffer / demo setup | Dec 14–18, 2026 | No new development — see `availability.md` §1. |
+ 
+ ## 2. Task breakdown
+@@ -57,70 +57,73 @@ sized. Revisit if they're wrong:
+ Effort is in focused hours (i.e., already assumes the 70% efficiency factor from
+ `availability.md` — these are hours of actual output, not hours sitting at the desk).
+ 
+-### Milestone 1 — Foundation & Infrastructure (Sept 28 – Oct 16, ~32h)
++### Milestone 1 — Foundation & Infrastructure (Sept 21 – Oct 9, ~32h)
+ 
+ | Task | Effort | Depends on | Target date | Features | Definition of done |
+ |---|---|---|---|---|---|
+-| 1.1 Repo structure (`ios/`, `backend/`, `admin-web/`, `docs/`) | 2h | 1.1 | 9/29 | infra | Repo pushed with the folder structure in place and this plan committed under `docs/project-plan/`. |
+-| 1.2 React Native project scaffold (iOS target) | 4h | 1.3 (can start before approval finishes) | 10/2 | infra | Blank RN app builds and runs on the iOS simulator via Xcode/CocoaPods; Metro bundler and dev workflow confirmed working. |
+-| 1.3 Supabase project + core schema + RLS | 5h | 1.1 | 10/6 | all | `users`, `health_profiles`, `exercises`, `plans`, `exercise_logs` tables exist with RLS policies; a test patient row is visible to itself and to a therapist role, not to a different patient. |
+-| 1.4 Flask skeleton, deployed | 4h | 1.5 | 10/9 | infra | `/health` returns 200 from a public URL; connects to Supabase successfully; app-factory structure in place so routes aren't all in one file. |
+-| 1.5 Auth end-to-end (F01, F02) | 6h | 1.4, 1.6 | 10/13 | F01, F02 | Patient signs in from the iPhone app and reaches an empty dashboard; admin signs in on web and reaches an empty roster. |
+-| 1.6 Admin web portal scaffold, deployed | 4h | 1.1 | 10/13 | infra | Admin portal live at a URL; shows the sign-in screen. |
+-| 1.7 APNs push certificate + test send | 2h | 1.3 | 10/16 | F06 | A manually triggered test push is received on a real or simulator device. |
+-| 1.8 Milestone review / buffer | 2h | all above | 10/16 | — | Every M1 row above is checked off; anything unfinished is explicitly rescheduled into M2, not silently dropped. |
++| 1.1 Repo structure (`ios/`, `backend/`, `admin-web/`, `docs/`) | 2h | 1.1 | 9/22 | infra | Repo pushed with the folder structure in place and this plan committed under `docs/project-plan/`. |
++| 1.2 React Native project scaffold (iOS target) | 4h | 1.3 (can start before approval finishes) | 9/25 | infra | Blank RN app builds and runs on the iOS simulator via Xcode/CocoaPods; Metro bundler and dev workflow confirmed working. |
++| 1.3 Supabase project + core schema + RLS | 5h | 1.1 | 9/29 | all | `users`, `health_profiles`, `exercises`, `plans`, `exercise_logs` tables exist with RLS policies; a test patient row is visible to itself and to a therapist role, not to a different patient. |
++| 1.4 Flask skeleton, deployed | 4h | 1.5 | 10/2 | infra | `/health` returns 200 from a public URL; connects to Supabase successfully; app-factory structure in place so routes aren't all in one file. |
++| 1.5 Auth end-to-end (F01, F02) | 6h | 1.4, 1.6 | 10/6 | F01, F02 | Patient signs in from the iPhone app and reaches an empty dashboard; admin signs in on web and reaches an empty roster. |
++| 1.6 Admin web portal scaffold, deployed | 4h | 1.1 | 10/6 | infra | Admin portal live at a URL; shows the sign-in screen. |
++| 1.7 APNs push certificate + test send | 2h | 1.3 | 10/9 | F06 | A manually triggered test push is received on a real or simulator device. |
++| 1.8 Milestone review / buffer | 2h | all above | 10/9 | — | Every M1 row above is checked off; anything unfinished is explicitly rescheduled into M2, not silently dropped. |
+ 
+-### Milestone 2 — Core Patient Experience (Oct 19 – Nov 13, ~49h)
++### Milestone 2 — Core Patient Experience (Oct 12 – Nov 6, ~49h)
+ 
+ | Task | Effort | Depends on | Target date | Features | Definition of done |
+ |---|---|---|---|---|---|
+-| 2.1 Home Dashboard UI | 5h | 1.7 | 10/23 | F03 | Dashboard renders real data (today's exercises, streak, quick stats) from a manually seeded test plan; shows the correct empty state with no program assigned. |
+-| 2.2 Scheduled delivery logic | 4h | 1.5, 1.6 | 10/25 | F04 | API returns the correct exercise list for a given patient/day, verified against 3 different test schedules. |
+-| 2.3 Exercise player shell (pre-exercise screen) | 5h | 2.1 | 10/28 | F05 | Instructions screen shows demo placeholder, target sets/reps, and a phone-positioning tip, and transitions into a session on "Start Exercise." |
+-| 2.4 Sensor capture via RN bridge | 9h | 2.3 | 11/3 | F05 | Library (e.g. `react-native-sensors`) evaluated against target sample rate on a real device — decision recorded, custom native module fallback used if it can't keep up; accelerometer + gyroscope stream captured and visible (console/log) at the target rate during a live session; pause/resume on backgrounding works. |
+-| 2.5 Rep counting & ROM algorithm | 10h | 2.4 | 11/8 | F05 | For 2–3 chosen exercise types (see §0.5), rep count is accurate within ±1 across 5 test runs each, and a per-rep ROM angle is computed and displayed. |
+-| 2.6 Live form feedback + session summary | 5h | 2.5 | 11/10 | F05 | "Good form"/"Adjust position" indicator updates live; session summary (reps, avg ROM, form score, duration) is shown and POSTed to `exercise_logs`. |
+-| 2.7 Push reminders + streak-at-risk (F06) | 5h | 1.9, 2.2 | 11/12 | F06 | Test patient receives a standard reminder if the day's session is incomplete, and a distinct streak-at-risk push if they have an active streak. |
+-| 2.8 Streak tracking (F07) | 3h | 2.6 | 11/13 | F07 | Completing all of a scheduled day's exercises increments a visible streak; missing a fully-scheduled day resets it to zero; a milestone badge appears at a defined threshold. |
+-| 2.9 Milestone review / integration test | 3h | all above | 11/13 | — | Full patient flow — sign in → dashboard → complete a real motion-tracked session → streak updates — works without any manual database edits. |
++| 2.1 Home Dashboard UI | 5h | 1.7 | 10/16 | F03 | Dashboard renders real data (today's exercises, streak, quick stats) from a manually seeded test plan; shows the correct empty state with no program assigned. |
++| 2.2 Scheduled delivery logic | 4h | 1.5, 1.6 | 10/18 | F04 | API returns the correct exercise list for a given patient/day, verified against 3 different test schedules. |
++| 2.3 Exercise player shell (pre-exercise screen) | 5h | 2.1 | 10/21 | F05 | Instructions screen shows demo placeholder, target sets/reps, and a phone-positioning tip, and transitions into a session on "Start Exercise." |
++| 2.4 Sensor capture via RN bridge | 9h | 2.3 | 10/27 | F05 | Library (e.g. `react-native-sensors`) evaluated against target sample rate on a real device — decision recorded, custom native module fallback used if it can't keep up; accelerometer + gyroscope stream captured and visible (console/log) at the target rate during a live session; pause/resume on backgrounding works. |
++| 2.5 Rep counting & ROM algorithm | 10h | 2.4 | 11/1 | F05 | For 2–3 chosen exercise types (see §0.5), rep count is accurate within ±1 across 5 test runs each, and a per-rep ROM angle is computed and displayed. |
++| 2.6 Live form feedback + session summary | 5h | 2.5 | 11/3 | F05 | "Good form"/"Adjust position" indicator updates live; session summary (reps, avg ROM, form score, duration) is shown and POSTed to `exercise_logs`. |
++| 2.7 Push reminders + streak-at-risk (F06) | 5h | 1.9, 2.2 | 11/5 | F06 | Test patient receives a standard reminder if the day's session is incomplete, and a distinct streak-at-risk push if they have an active streak. |
++| 2.8 Streak tracking (F07) | 3h | 2.6 | 11/6 | F07 | Completing all of a scheduled day's exercises increments a visible streak; missing a fully-scheduled day resets it to zero; a milestone badge appears at a defined threshold. |
++| 2.9 Milestone review / integration test | 3h | all above | 11/6 | — | Full patient flow — sign in → dashboard → complete a real motion-tracked session → streak updates — works without any manual database edits. |
+ 
+-### Milestone 3 — Admin Portal & Data Loop (Nov 16 – Dec 4, ~37h)
++### Milestone 3 — Admin Portal & Data Loop (Nov 9 – Dec 2, ~37h)
+ 
+-*Spans the Thanksgiving week (Nov 23–29) — task 3.3 is deliberately given extra calendar room
+-to absorb the reduced-capacity days.*
++*Spans the Thanksgiving break (Wed Nov 25 – Fri Nov 27, zero-capacity days). Tasks 3.1–3.3 land
++before the break, 3.4 on the last working day before it, and 3.5–3.7 are scheduled after it.*
+ 
+ | Task | Effort | Depends on | Target date | Features | Definition of done |
+ |---|---|---|---|---|---|
+-| 3.1 Patient Roster Dashboard | 5h | 1.7, 1.8 | 11/20 | F09 | Roster lists ≥3 seeded test patients with correct adherence %, last-session date, and a status flag; empty state with "Add Patient" works with zero patients. |
+-| 3.2 Exercise Library + seed data | 4h | 1.8 | 11/22 | F11 | 10–15 seeded exercises, taggable/searchable by body area; empty search state handled. |
+-| 3.3 Program assignment editor | 8h | 3.2 | 11/29 | F10 | Admin builds a program (schedule days + exercises + sets/reps), saves it, and it's blocked from saving with zero exercises; it correctly appears in the patient app starting the next scheduled day. |
+-| 3.4 Patient Detail & Progress Review | 5h | 3.1 | 12/2 | F12 | Opening a patient shows profile, current program summary, key stats, ROM trend chart, and recent sessions list; empty state before any sessions exist. |
+-| 3.5 Session Data Review | 8h | 2.5, 2.6, 3.4 | 12/4 | F13 | Admin opens a completed session, sees rep-by-rep ROM chart with flagged deviations explained in plain language (or "No issues flagged"), and can save a persisting clinical note. |
+-| 3.6 Patient Progress & Adherence History | 5h | 2.6 | 12/4 | F08 | Patient-side Progress tab shows adherence %, ROM trend, form-score trend, and session list, filterable by week/month/all-time, from ≥5 seeded sessions. |
+-| 3.7 Milestone review | 2h | all above | 12/4 | — | Full admin loop — assign program → patient completes it → admin reviews the session → adds a note — works end to end. |
++| 3.1 Patient Roster Dashboard | 5h | 1.7, 1.8 | 11/13 | F09 | Roster lists ≥3 seeded test patients with correct adherence %, last-session date, and a status flag; empty state with "Add Patient" works with zero patients. |
++| 3.2 Exercise Library + seed data | 4h | 1.8 | 11/15 | F11 | 10–15 seeded exercises, taggable/searchable by body area; empty search state handled. |
++| 3.3 Program assignment editor | 8h | 3.2 | 11/22 | F10 | Admin builds a program (schedule days + exercises + sets/reps), saves it, and it's blocked from saving with zero exercises; it correctly appears in the patient app starting the next scheduled day. |
++| 3.4 Patient Detail & Progress Review | 5h | 3.1 | 11/24 | F12 | Opening a patient shows profile, current program summary, key stats, ROM trend chart, and recent sessions list; empty state before any sessions exist. |
++| 3.5 Session Data Review | 8h | 2.5, 2.6, 3.4 | 12/1 | F13 | Admin opens a completed session, sees rep-by-rep ROM chart with flagged deviations explained in plain language (or "No issues flagged"), and can save a persisting clinical note. |
++| 3.6 Patient Progress & Adherence History | 5h | 2.6 | 12/1 | F08 | Patient-side Progress tab shows adherence %, ROM trend, form-score trend, and session list, filterable by week/month/all-time, from ≥5 seeded sessions. |
++| 3.7 Milestone review | 2h | all above | 12/2 | — | Full admin loop — assign program → patient completes it → admin reviews the session → adds a note — works end to end. |
+ 
+-### Milestone 4 — Polish & Demo Readiness (Dec 7 – Dec 11, ~15h + buffer week)
++### Milestone 4 — Polish & Demo Readiness (Dec 3 – Dec 8, ~15h + buffer week)
+ 
+ | Task | Effort | Depends on | Target date | Features | Definition of done |
+ |---|---|---|---|---|---|
+-| 4.1 Bug bash & edge cases | 5h | M1–M3 complete | 12/9 | all | Empty states, error handling, and the edge cases listed in `features.md` for F01–F13 are spot-checked, not just the happy path. |
+-| 4.2 Realistic demo data | 2h | 4.1 | 12/9 | all | 3–4 demo patients exist with real-looking history (varied adherence, at least one flagged form issue) so the demo isn't a blank slate. |
+-| 4.3 Deployment hardening | 3h | 4.1 | 12/11 | infra | Backend and admin portal are stable on their real hosting (not just localhost); env vars/secrets are not hardcoded. |
+-| 4.4 Demo script & rehearsal | 2h | 4.2, 4.3 | 12/11 | — | A written walkthrough exists covering both the patient and admin sides, and has been run through at least once end to end. |
+-| 4.5 Contingency buffer | ~3h | — | 12/11 | — | Absorbs whatever slipped from M1–M3; if nothing slipped, spend it expanding F05's exercise coverage beyond the MVP minimum. |
++| 4.1 Bug bash & edge cases | 5h | M1–M3 complete | 12/4 | all | Empty states, error handling, and the edge cases listed in `features.md` for F01–F13 are spot-checked, not just the happy path. |
++| 4.2 Realistic demo data | 2h | 4.1 | 12/4 | all | 3–4 demo patients exist with real-looking history (varied adherence, at least one flagged form issue) so the demo isn't a blank slate. |
++| 4.3 Deployment hardening | 3h | 4.1 | 12/8 | infra | Backend and admin portal are stable on their real hosting (not just localhost); env vars/secrets are not hardcoded. |
++| 4.4 Demo script & rehearsal | 2h | 4.2, 4.3 | 12/8 | — | A written walkthrough exists covering both the patient and admin sides, and has been run through at least once end to end. |
++| 4.5 Contingency buffer | ~3h | — | 12/8 | — | Absorbs whatever slipped from M1–M3; if nothing slipped, spend it expanding F05's exercise coverage beyond the MVP minimum. |
++
++**Dec 9–11:** unscheduled spare days before the Dec 11 development cutoff — use them for anything
++that slipped from M1–M4.
+ 
+ **Dec 14–18:** no new development scheduled — this window is for final demo-environment setup
+ and rehearsal only, per the assignment's instruction not to schedule work through the deadline.
+ 
+ ## 3. Total effort check
+ 
+-M1 (~32h) + M2 (~49h) + M3 (~37h) + M4 (~15h) = **~133 focused hours**, against the **~125–135
+-effective hours** budgeted in `availability.md` §4 — an even tighter match than before, since
+-moving to React Native added a little effort (and real risk) to task 2.4 without removing
+-anything elsewhere. There is essentially **no slack**: if any `TODO (you)` item in
++M1 (~32h) + M2 (~49h) + M3 (~37h) + M4 (~15h) = **~133 focused hours**, against the **~137–147
++effective hours** budgeted in `availability.md` §4 now that the project starts a week earlier
++(Sept 21). That leaves roughly **4–14 hours of slack** (the spare days between the Dec 8 M4
++target and the Dec 11 dev cutoff). The slack is thin: if any `TODO (you)` item in
+ `availability.md` §3 turns out to reduce available hours (a college visit week, a field trip),
+ or if 2.4's sensor-bridge evaluation forces the custom-native-module fallback, that time has to
+ come out of scope — most likely by cutting M4's contingency buffer first, then narrowing F05's
+ exercise coverage in §0.5, rather than by trying to compress M2 or M3's core build time. Given
+ the added risk, it's worth doing 2.4's library evaluation as early as possible so any fallback
+-is known well before M2's deadline, not discovered late.
+\ No newline at end of file
++is known well before M2's deadline, not discovered late.
+diff --git a/docs/project-plan/tasks.csv b/docs/project-plan/tasks.csv
+index 19f0d24..e08e84f 100644
+--- a/docs/project-plan/tasks.csv
++++ b/docs/project-plan/tasks.csv
+@@ -1,30 +1,30 @@
+ Task,Milestone,Effort (hrs),Dependencies,Target Date,Related Features,Definition of Done
+-1.1 Repo structure,M1 Foundation,2,1.1,2026-09-29,infra,"Repo pushed with ios/backend/admin-web/docs folders; plan committed under docs/project-plan/"
+-1.2 React Native project scaffold (iOS target),M1 Foundation,4,1.3,2026-10-02,infra,"Blank RN app builds and runs on iOS simulator via Xcode/CocoaPods; dev workflow confirmed"
+-1.3 Supabase project + schema + RLS,M1 Foundation,5,1.1,2026-10-06,all,"Core tables exist with RLS policies verified across patient/therapist roles"
+-1.4 Flask skeleton deployed,M1 Foundation,4,1.5,2026-10-09,infra,"/health endpoint returns 200 from public URL; connects to Supabase; app-factory structure in place"
+-1.5 Auth end-to-end,M1 Foundation,6,"1.4,1.6",2026-10-13,"F01,F02","Patient signs in on iPhone to empty dashboard; admin signs in on web to empty roster"
+-1.6 Admin web portal scaffold deployed,M1 Foundation,4,1.1,2026-10-13,infra,"Admin portal live at a URL, shows sign-in screen"
+-1.7 APNs push certificate + test send,M1 Foundation,2,1.3,2026-10-16,F06,"Manually triggered test push received on device"
+-1.8 Milestone review / buffer,M1 Foundation,2,all above,2026-10-16,-,"All M1 items checked off or explicitly rescheduled"
+-2.1 Home Dashboard UI,M2 Patient Experience,5,1.7,2026-10-23,F03,"Dashboard renders real seeded data; correct empty state with no program assigned"
+-2.2 Scheduled delivery logic,M2 Patient Experience,4,"1.5,1.6",2026-10-25,F04,"API returns correct exercise list for patient/day across 3 test schedules"
+-2.3 Exercise player shell,M2 Patient Experience,5,2.1,2026-10-28,F05,"Pre-exercise screen shows demo/reps/tip and transitions into a session"
+-2.4 Sensor capture via RN bridge,M2 Patient Experience,9,2.3,2026-11-03,F05,"Sensor library evaluated on real device (fallback: custom native module); accel/gyro captured at target rate; pause/resume works"
+-2.5 Rep counting & ROM algorithm,M2 Patient Experience,10,2.4,2026-11-08,F05,"Rep count accurate within +/-1 across 5 runs for 2-3 exercise types; ROM computed per rep"
+-2.6 Live form feedback + session summary,M2 Patient Experience,5,2.5,2026-11-10,F05,"Live indicator updates; summary shown and POSTed to exercise_logs"
+-2.7 Push reminders + streak-at-risk,M2 Patient Experience,5,"1.9,2.2",2026-11-12,F06,"Standard reminder and distinct streak-at-risk push both verified"
+-2.8 Streak tracking,M2 Patient Experience,3,2.6,2026-11-13,F07,"Streak increments/resets correctly; milestone badge appears"
+-2.9 Milestone review / integration test,M2 Patient Experience,3,all above,2026-11-13,-,"Full patient flow works end to end with no manual DB edits"
+-3.1 Patient Roster Dashboard,M3 Admin Portal,5,"1.7,1.8",2026-11-20,F09,"Roster lists seeded patients with correct adherence/status; empty state works"
+-3.2 Exercise Library + seed data,M3 Admin Portal,4,1.8,2026-11-22,F11,"10-15 seeded exercises, searchable by body area; empty search state handled"
+-3.3 Program assignment editor,M3 Admin Portal,8,3.2,2026-11-29,F10,"Program built/saved, zero-exercise save blocked, appears in app next scheduled day"
+-3.4 Patient Detail & Progress Review,M3 Admin Portal,5,3.1,2026-12-02,F12,"Detail view shows profile/program/stats/chart/sessions with empty state before sessions"
+-3.5 Session Data Review,M3 Admin Portal,8,"2.5,2.6,3.4",2026-12-04,F13,"Rep-by-rep chart with flagged deviations explained; clinical note persists"
+-3.6 Patient Progress & Adherence History,M3 Admin Portal,5,2.6,2026-12-04,F08,"Progress tab shows adherence/ROM/form trends filterable by range, from seeded sessions"
+-3.7 Milestone review,M3 Admin Portal,2,all above,2026-12-04,-,"Full admin loop works end to end"
+-4.1 Bug bash & edge cases,M4 Polish,5,M1-M3 complete,2026-12-09,all,"Edge cases from features.md spot-checked, not just happy path"
+-4.2 Realistic demo data,M4 Polish,2,4.1,2026-12-09,all,"3-4 demo patients with realistic varied history"
+-4.3 Deployment hardening,M4 Polish,3,4.1,2026-12-11,infra,"Backend and admin portal stable on real hosting; no hardcoded secrets"
+-4.4 Demo script & rehearsal,M4 Polish,2,"4.2,4.3",2026-12-11,-,"Written walkthrough exists and has been run through once end to end"
+-4.5 Contingency buffer,M4 Polish,3,-,2026-12-11,-,"Absorbs slipped work, or expands F05 exercise coverage if nothing slipped"
+\ No newline at end of file
++1.1 Repo structure,M1 Foundation,2,1.1,2026-09-22,infra,"Repo pushed with ios/backend/admin-web/docs folders; plan committed under docs/project-plan/"
++1.2 React Native project scaffold (iOS target),M1 Foundation,4,1.3,2026-09-25,infra,"Blank RN app builds and runs on iOS simulator via Xcode/CocoaPods; dev workflow confirmed"
++1.3 Supabase project + schema + RLS,M1 Foundation,5,1.1,2026-09-29,all,"Core tables exist with RLS policies verified across patient/therapist roles"
++1.4 Flask skeleton deployed,M1 Foundation,4,1.5,2026-10-02,infra,"/health endpoint returns 200 from public URL; connects to Supabase; app-factory structure in place"
++1.5 Auth end-to-end,M1 Foundation,6,"1.4,1.6",2026-10-06,"F01,F02","Patient signs in on iPhone to empty dashboard; admin signs in on web to empty roster"
++1.6 Admin web portal scaffold deployed,M1 Foundation,4,1.1,2026-10-06,infra,"Admin portal live at a URL, shows sign-in screen"
++1.7 APNs push certificate + test send,M1 Foundation,2,1.3,2026-10-09,F06,"Manually triggered test push received on device"
++1.8 Milestone review / buffer,M1 Foundation,2,all above,2026-10-09,-,"All M1 items checked off or explicitly rescheduled"
++2.1 Home Dashboard UI,M2 Patient Experience,5,1.7,2026-10-16,F03,"Dashboard renders real seeded data; correct empty state with no program assigned"
++2.2 Scheduled delivery logic,M2 Patient Experience,4,"1.5,1.6",2026-10-18,F04,"API returns correct exercise list for patient/day across 3 test schedules"
++2.3 Exercise player shell,M2 Patient Experience,5,2.1,2026-10-21,F05,"Pre-exercise screen shows demo/reps/tip and transitions into a session"
++2.4 Sensor capture via RN bridge,M2 Patient Experience,9,2.3,2026-10-27,F05,"Sensor library evaluated on real device (fallback: custom native module); accel/gyro captured at target rate; pause/resume works"
++2.5 Rep counting & ROM algorithm,M2 Patient Experience,10,2.4,2026-11-01,F05,"Rep count accurate within +/-1 across 5 runs for 2-3 exercise types; ROM computed per rep"
++2.6 Live form feedback + session summary,M2 Patient Experience,5,2.5,2026-11-03,F05,"Live indicator updates; summary shown and POSTed to exercise_logs"
++2.7 Push reminders + streak-at-risk,M2 Patient Experience,5,"1.9,2.2",2026-11-05,F06,"Standard reminder and distinct streak-at-risk push both verified"
++2.8 Streak tracking,M2 Patient Experience,3,2.6,2026-11-06,F07,"Streak increments/resets correctly; milestone badge appears"
++2.9 Milestone review / integration test,M2 Patient Experience,3,all above,2026-11-06,-,"Full patient flow works end to end with no manual DB edits"
++3.1 Patient Roster Dashboard,M3 Admin Portal,5,"1.7,1.8",2026-11-13,F09,"Roster lists seeded patients with correct adherence/status; empty state works"
++3.2 Exercise Library + seed data,M3 Admin Portal,4,1.8,2026-11-15,F11,"10-15 seeded exercises, searchable by body area; empty search state handled"
++3.3 Program assignment editor,M3 Admin Portal,8,3.2,2026-11-22,F10,"Program built/saved, zero-exercise save blocked, appears in app next scheduled day"
++3.4 Patient Detail & Progress Review,M3 Admin Portal,5,3.1,2026-11-24,F12,"Detail view shows profile/program/stats/chart/sessions with empty state before sessions"
++3.5 Session Data Review,M3 Admin Portal,8,"2.5,2.6,3.4",2026-12-01,F13,"Rep-by-rep chart with flagged deviations explained; clinical note persists"
++3.6 Patient Progress & Adherence History,M3 Admin Portal,5,2.6,2026-12-01,F08,"Progress tab shows adherence/ROM/form trends filterable by range, from seeded sessions"
++3.7 Milestone review,M3 Admin Portal,2,all above,2026-12-02,-,"Full admin loop works end to end"
++4.1 Bug bash & edge cases,M4 Polish,5,M1-M3 complete,2026-12-04,all,"Edge cases from features.md spot-checked, not just happy path"
++4.2 Realistic demo data,M4 Polish,2,4.1,2026-12-04,all,"3-4 demo patients with realistic varied history"
++4.3 Deployment hardening,M4 Polish,3,4.1,2026-12-08,infra,"Backend and admin portal stable on real hosting; no hardcoded secrets"
++4.4 Demo script & rehearsal,M4 Polish,2,"4.2,4.3",2026-12-08,-,"Written walkthrough exists and has been run through once end to end"
++4.5 Contingency buffer,M4 Polish,3,-,2026-12-08,-,"Absorbs slipped work, or expands F05 exercise coverage if nothing slipped"
+-- 
+2.43.0
+
