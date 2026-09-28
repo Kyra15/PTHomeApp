@@ -11,12 +11,12 @@ class SupabaseExtension:
         app.extensions["supabase"] = self
 
     def configured(self, app) -> bool:
-        return bool(app.config["SUPABASE_URL"] and app.config["SUPABASE_SERVICE_ROLE_KEY"])
+        return bool(app.config["SUPABASE_URL"] and app.config["SUPABASE_SECRET_KEY"])
 
     def client(self, app) -> Client:
         if self._client is None:
             self._client = create_client(
-                app.config["SUPABASE_URL"], app.config["SUPABASE_SERVICE_ROLE_KEY"]
+                app.config["SUPABASE_URL"], app.config["SUPABASE_SECRET_KEY"]
             )
         return self._client
 

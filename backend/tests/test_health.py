@@ -5,7 +5,7 @@ from app.extensions import supabase_ext
 
 class NoSupabase(Config):
     SUPABASE_URL = ""
-    SUPABASE_SERVICE_ROLE_KEY = ""
+    SUPABASE_SECRET_KEY = ""
 
 
 def test_health_returns_200_without_supabase():
