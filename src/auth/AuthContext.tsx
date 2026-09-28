@@ -8,9 +8,9 @@ type Result = { error: string | null };
 interface AuthValue {
   session: Session | null;
   loading: boolean;
-  fullName: string | null;
+  firstName: string | null;
   signIn: (email: string, password: string) => Promise<Result>;
-  signUp: (fullName: string, email: string, password: string) => Promise<Result>;
+  signUp: (firstName: string, lastName: string, email: string, password: string) => Promise<Result>;
   signOut: () => Promise<void>;
 }
 
@@ -70,13 +70,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signUp = useCallback(
-    async (fullName: string, email: string, password: string): Promise<Result> => {
+    async (firstName: string, lastName: string, email: string, password: string): Promise<Result> => {
       if (!supabaseConfigured) return { error: 'The app is not connected to the server yet.' };
       try {
         const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { data: { full_name: fullName.trim() } },
+          options: {
+            data: {
+              first_name: firstName.trim(),
+              last_name: lastName.trim(),
+              full_name: `${firstName.trim()} ${lastName.trim()}`,
+            },
+          },
         });
         if (error) return { error: friendlyError(error.message) };
         if (!data.session) {
@@ -95,11 +101,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   }, []);
 
-  const fullName = (session?.user.user_metadata?.full_name as string | undefined) ?? null;
+  const meta = session?.user.user_metadata as { first_name?: string; full_name?: string } | undefined;
+  // Accounts made before first/last name existed only have full_name; use its first word.
+  const firstName = meta?.first_name || meta?.full_name?.split(' ')[0] || null;
 
   const value = useMemo(
-    () => ({ session, loading, fullName, signIn, signUp, signOut }),
-    [session, loading, fullName, signIn, signUp, signOut],
+    () => ({ session, loading, firstName, signIn, signUp, signOut }),
+    [session, loading, firstName, signIn, signUp, signOut],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

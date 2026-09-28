@@ -11,8 +11,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Dashboard'>;
 
 /** Empty dashboard for task 1.5. The real dashboard (today's exercises, streak) is task 2.1. */
 export function DashboardScreen({ navigation }: Props) {
-  const { fullName, session, signOut } = useAuth();
-  const greeting = fullName ? `Hello, ${fullName}` : 'Hello';
+  const { firstName, session, signOut } = useAuth();
+  const greeting = firstName ? `Hello, ${firstName}` : 'Hello';
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>

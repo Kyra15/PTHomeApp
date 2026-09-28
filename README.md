@@ -87,7 +87,7 @@ never commit it or put it in the app.
 
 ### Database (Supabase)
 
-Run each file in `backend/supabase/migrations/` in order (`0001`, then `0002`) in the Supabase SQL Editor, then run
+Run each file in `backend/supabase/migrations/` in order (`0001`, `0002`, then `0003`) in the Supabase SQL Editor, then run
 `backend/supabase/tests_rls.sql` to check the access rules. Every row it returns should show
 `passed = true`.
 

@@ -12,18 +12,24 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'SignUp'>;
 
 export function SignUpScreen({ navigation }: Props) {
   const { signUp } = useAuth();
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const canSubmit = name.trim().length > 0 && email.trim().length > 0 && password.length >= 6 && !busy;
+  const canSubmit =
+    firstName.trim().length > 0 &&
+    lastName.trim().length > 0 &&
+    email.trim().length > 0 &&
+    password.length >= 6 &&
+    !busy;
 
   async function submit() {
     setBusy(true);
     setMessage(null);
-    const { error } = await signUp(name, email, password);
+    const { error } = await signUp(firstName, lastName, email, password);
     setBusy(false);
     if (error) setMessage(error); // on success the navigator switches to the dashboard automatically
   }
@@ -33,7 +39,22 @@ export function SignUpScreen({ navigation }: Props) {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.title}>Create Account</Text>
-          <BigInput label="Your name" value={name} onChangeText={setName} textContentType="name" autoComplete="name" />
+          <BigInput
+            label="First name"
+            value={firstName}
+            onChangeText={setFirstName}
+            autoCapitalize="words"
+            textContentType="givenName"
+            autoComplete="given-name"
+          />
+          <BigInput
+            label="Last name"
+            value={lastName}
+            onChangeText={setLastName}
+            autoCapitalize="words"
+            textContentType="familyName"
+            autoComplete="family-name"
+          />
           <BigInput
             label="Email"
             value={email}
