@@ -69,6 +69,10 @@ npx expo run:ios             # build and launch in the iOS simulator (Mac + Xcod
 The app uses the Supabase **publishable** key (`sb_publishable_...`), which is safe to ship in the app.
 Never put the `sb_secret_...` key in the app.
 
+### Admin / clinician web portal
+
+See [`admin-web/README.md`](./admin-web/README.md).
+
 ### Backend (Flask)
 
 Requires Python 3.12. Full details in [`backend/README.md`](./backend/README.md).
