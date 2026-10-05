@@ -1,16 +1,19 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, supabaseConfigured } from '../lib/supabase';
+import { provisionTherapist } from '../lib/api';
 
 type Result = { error: string | null };
 
-// Admins (therapists/nurses) are provisioned by the org, not self-serve (F02 #2) — so there is
-// no sign-up here, only sign-in.
+// Admins are still provisioned, not fully self-serve (F02 #2): creating an account requires
+// the organization's access code, checked server-side by the backend before any Supabase user
+// is created. See src/lib/api.ts.
 interface AuthValue {
   session: Session | null;
   loading: boolean;
   firstName: string | null;
   signIn: (email: string, password: string) => Promise<Result>;
+  signUp: (input: { accessCode: string; firstName: string; lastName: string; email: string; password: string }) => Promise<Result>;
   signOut: () => Promise<void>;
 }
 
@@ -74,6 +77,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [rejectIfNotActiveTherapist],
   );
 
+  const signUp = useCallback(
+    async (input: { accessCode: string; firstName: string; lastName: string; email: string; password: string }): Promise<Result> => {
+      const { error } = await provisionTherapist(input);
+      if (error) return { error };
+      // Account now exists server-side; sign in to start the session.
+      return signIn(input.email, input.password);
+    },
+    [signIn],
+  );
+
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
   }, []);
@@ -81,8 +94,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const firstName = (session?.user.user_metadata?.first_name as string | undefined) ?? null;
 
   const value = useMemo(
-    () => ({ session, loading, firstName, signIn, signOut }),
-    [session, loading, firstName, signIn, signOut],
+    () => ({ session, loading, firstName, signIn, signUp, signOut }),
+    [session, loading, firstName, signIn, signUp, signOut],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

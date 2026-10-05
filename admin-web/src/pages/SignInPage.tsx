@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
 export function SignInPage() {
@@ -56,6 +56,9 @@ export function SignInPage() {
         <button className="btn-primary" type="submit" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign In'}
         </button>
+        <Link to="/sign-up" className="btn-text">
+          Create a clinician account
+        </Link>
       </form>
     </div>
   );

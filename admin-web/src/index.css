@@ -1,13 +1,22 @@
+/*
+ * Design tokens mirrored from the patient app's src/theme/theme.ts, adapted for a desktop
+ * web admin portal (normal text sizes and click targets, not the app's oversized/accessible
+ * touch targets).
+ */
 :root {
-  --bg: #f4f6f8;
-  --surface: #ffffff;
-  --text: #1a2330;
-  --text-secondary: #5b6775;
-  --border: #d7dde3;
-  --primary: #2563eb;
-  --primary-dark: #1d4ed8;
-  --danger: #b42318;
-  --danger-bg: #fef3f2;
+  --bg: #F6F4EF;
+  --surface: #FFFFFF;
+  --surface-alt: #ECE8DF;
+  --text: #1E2A32;
+  --text-secondary: #4B5B63;
+  --text-on-primary: #FFFFFF;
+  --border: #D8D2C4;
+  --primary: #0E6E66;
+  --primary-dark: #0A4F49;
+  --danger: #9B2C2C;
+  --danger-bg: #F8EAE8;
+  --radius-md: 12px;
+  --radius-lg: 18px;
   color-scheme: light;
 }
 * { box-sizing: border-box; }

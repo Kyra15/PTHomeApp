@@ -12,3 +12,12 @@ class Config:
     # Shared secret for POST /admin/therapists (provisioning staff accounts). Set a long random
     # value in your .env / Render env vars; never commit a real value.
     ADMIN_PROVISION_KEY = os.environ.get("ADMIN_PROVISION_KEY", "")
+
+    # Comma-separated list of origins allowed to call /admin/* from a browser (admin-web's
+    # dev server and deployed URL). "*" works for local development but not for a browser
+    # request that sends credentials, which this app doesn't use, so "*" is fine here too.
+    CORS_ORIGINS = [
+        o.strip()
+        for o in os.environ.get("CORS_ORIGINS", "http://localhost:5173").split(",")
+        if o.strip()
+    ]

@@ -7,72 +7,129 @@
 }
 .card {
   width: 100%;
-  max-width: 380px;
+  max-width: 400px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 32px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border-radius: var(--radius-lg);
+  padding: 36px;
+  box-shadow: 0 1px 3px rgba(30, 42, 50, 0.08);
 }
-.card h1 { margin: 0 0 4px; font-size: 22px; }
-.card .subtitle { margin: 0 0 24px; color: var(--text-secondary); font-size: 14px; }
+.card h1 {
+  margin: 0 0 4px;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--primary);
+}
+.card .subtitle { margin: 0 0 24px; color: var(--text-secondary); font-size: 15px; }
 .field { margin-bottom: 16px; }
-.field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+.field label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; color: var(--text); }
 .field input {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  padding: 11px 14px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
   font-size: 15px;
+  background: var(--surface);
+  color: var(--text);
 }
-.field input:focus { outline: 2px solid var(--primary); outline-offset: 1px; }
+.field input:focus { outline: none; border-color: var(--primary); }
+.field-hint { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
 .error-banner {
   background: var(--danger-bg);
   color: var(--danger);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 10px 12px;
   font-size: 14px;
   margin-bottom: 16px;
+  font-weight: 600;
+}
+.success-banner {
+  background: var(--surface-alt);
+  color: var(--primary-dark);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  font-size: 14px;
+  margin-bottom: 16px;
+  font-weight: 600;
 }
 .btn-primary {
   width: 100%;
-  padding: 11px;
+  padding: 13px;
   background: var(--primary);
-  color: white;
+  color: var(--text-on-primary);
   border: none;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: 600;
+  border-radius: var(--radius-md);
+  font-size: 16px;
+  font-weight: 800;
   cursor: pointer;
 }
-.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-primary:disabled { background: #B8B2A4; cursor: not-allowed; }
 .btn-primary:not(:disabled):hover { background: var(--primary-dark); }
+.btn-text {
+  width: 100%;
+  margin-top: 14px;
+  padding: 8px;
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+}
+.btn-text:hover { color: var(--primary-dark); text-decoration: underline; }
 
 .app-shell { min-height: 100vh; }
 .app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 24px;
+  padding: 18px 28px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
-.app-header h1 { font-size: 18px; margin: 0; }
+.app-header h1 { font-size: 20px; font-weight: 800; color: var(--primary); margin: 0; }
 .btn-link {
   background: none;
-  border: none;
-  color: var(--primary);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  padding: 8px;
+  padding: 8px 14px;
 }
+.btn-link:hover { border-color: var(--primary); color: var(--primary); }
+
+.page-body { max-width: 860px; margin: 0 auto; padding: 32px 24px; }
 .empty-state {
-  max-width: 480px;
-  margin: 15vh auto 0;
+  max-width: 440px;
+  margin: 12vh auto 0;
   text-align: center;
   color: var(--text-secondary);
-  padding: 0 24px;
 }
-.empty-state h2 { color: var(--text); margin-bottom: 8px; }
+.empty-state h2 { color: var(--text); margin-bottom: 8px; font-size: 20px; }
+
+.patient-list { display: flex; flex-direction: column; gap: 12px; }
+.patient-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.patient-card .name { font-size: 16px; font-weight: 700; color: var(--text); }
+.patient-card .meta { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+.patient-card .injury-badge {
+  background: var(--surface-alt);
+  color: var(--primary-dark);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+  text-transform: capitalize;
+}
+
 .spinner-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); }
