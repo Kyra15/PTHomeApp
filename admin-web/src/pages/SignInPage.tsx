@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { Logo } from '../components/Logo';
 
 export function SignInPage() {
   const { session, signIn } = useAuth();
@@ -22,44 +23,63 @@ export function SignInPage() {
   }
 
   return (
-    <div className="center-page">
-      <form className="card" onSubmit={handleSubmit}>
-        <h1>Kinetic</h1>
-        <p className="subtitle">Clinician / Admin Portal</p>
-        {error ? (
-          <div className="error-banner" role="alert" aria-live="polite">
-            {error}
+    <div className="auth-page">
+      <div className="auth-hero">
+        <div className="auth-hero-content">
+          <div className="logo-row">
+            <Logo size={52} />
           </div>
-        ) : null}
-        <div className="field">
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            type="email"
-            autoComplete="username"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+          <h1>
+            Kinetic
+            <br />
+            Clinician Portal
+          </h1>
+          <p>
+            Assign home-exercise programs, monitor real-time motion data, and track adherence
+            for every patient on your caseload.
+          </p>
         </div>
-        <div className="field">
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
-        <button className="btn-primary" type="submit" disabled={busy}>
-          {busy ? 'Signing in…' : 'Sign In'}
-        </button>
-        <Link to="/sign-up" className="btn-text">
-          Create a clinician account
-        </Link>
-      </form>
+      </div>
+      <div className="auth-form-side">
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <h2>Sign in</h2>
+          <p className="subtitle">For licensed physical therapists and care teams.</p>
+          {error ? (
+            <div className="error-banner" role="alert" aria-live="polite">
+              {error}
+            </div>
+          ) : null}
+          <div className="field">
+            <label htmlFor="email">Work email</label>
+            <input
+              id="email"
+              type="email"
+              autoComplete="username"
+              placeholder="a.chen@rehabpartners.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="password">Password</label>
+            <input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <button className="btn-primary" type="submit" disabled={busy}>
+            {busy ? 'Signing in…' : 'Sign In'}
+          </button>
+          <Link to="/sign-up" className="btn-text">
+            Create a clinician account
+          </Link>
+        </form>
+      </div>
     </div>
   );
 }

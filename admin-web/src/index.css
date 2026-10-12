@@ -1,22 +1,37 @@
 /*
- * Design tokens mirrored from the patient app's src/theme/theme.ts, adapted for a desktop
- * web admin portal (normal text sizes and click targets, not the app's oversized/accessible
- * touch targets).
+ * Design tokens matching the clinician-portal mockups (docs/mockups/c1-login.png,
+ * c2-roster.png): dark teal sidebar/hero panel, coral accent, pale cool page background.
+ * Sampled from the mockup images and adjusted for contrast/accessibility.
  */
 :root {
-  --bg: #F6F4EF;
+  --bg: #EDF3F3;
   --surface: #FFFFFF;
-  --surface-alt: #ECE8DF;
-  --text: #1E2A32;
-  --text-secondary: #4B5B63;
-  --text-on-primary: #FFFFFF;
-  --border: #D8D2C4;
-  --primary: #0E6E66;
-  --primary-dark: #0A4F49;
-  --danger: #9B2C2C;
-  --danger-bg: #F8EAE8;
+  --surface-alt: #F5F8F8;
+  --text: #13272A;
+  --text-secondary: #5E6B66;
+  --text-on-dark: #FFFFFF;
+  --text-on-dark-muted: rgba(255, 255, 255, 0.68);
+  --border: #E1E8E7;
+
+  --teal: #0B3D42;
+  --teal-light: #154A50;
+  --teal-dark: #072A2E;
+
+  --accent: #FF6B4A;
+  --accent-dark: #E6563A;
+
+  --success-bg: #E1F5E9;
+  --success-text: #1E8E4F;
+  --warning-bg: #FDF1DE;
+  --warning-text: #C87F1E;
+  --danger-bg: #FBE4DD;
+  --danger-text: #C24A2E;
+
+  --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 18px;
+  --radius-pill: 999px;
+
   color-scheme: light;
 }
 * { box-sizing: border-box; }
@@ -27,3 +42,4 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 input, button { font: inherit; }
+a { color: inherit; }

@@ -4,6 +4,7 @@ import { RequireAuth } from './routes/RequireAuth';
 import { SignInPage } from './pages/SignInPage';
 import { SignUpPage } from './pages/SignUpPage';
 import { RosterPage } from './pages/RosterPage';
+import { ComingSoonPage } from './pages/ComingSoonPage';
 import './App.css';
 
 export default function App() {
@@ -18,6 +19,38 @@ export default function App() {
             element={
               <RequireAuth>
                 <RosterPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/patients"
+            element={
+              <RequireAuth>
+                <ComingSoonPage title="Patients" />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/exercise-library"
+            element={
+              <RequireAuth>
+                <ComingSoonPage title="Exercise Library" />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/messages"
+            element={
+              <RequireAuth>
+                <ComingSoonPage title="Messages" />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <RequireAuth>
+                <ComingSoonPage title="Settings" />
               </RequireAuth>
             }
           />
