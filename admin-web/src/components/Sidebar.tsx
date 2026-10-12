@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutGrid, Users, ClipboardList, MessageSquare, Settings, LogOut } from 'lucide-react';
+import { LayoutGrid, Users, MailPlus, ClipboardList, MessageSquare, Settings, LogOut } from 'lucide-react';
 import { Logo } from './Logo';
 import { useAuth } from '../auth/AuthContext';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: LayoutGrid, end: true },
   { to: '/patients', label: 'Patients', icon: Users },
+  { to: '/invitations', label: 'Invitations', icon: MailPlus },
   { to: '/exercise-library', label: 'Exercise Library', icon: ClipboardList },
   { to: '/messages', label: 'Messages', icon: MessageSquare },
   { to: '/settings', label: 'Settings', icon: Settings },

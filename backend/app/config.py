@@ -13,6 +13,21 @@ class Config:
     # value in your .env / Render env vars; never commit a real value.
     ADMIN_PROVISION_KEY = os.environ.get("ADMIN_PROVISION_KEY", "")
 
+    # Transactional email (https://resend.com). HTTPS API on purpose: Render's free tier blocks outbound
+    # SMTP. If RESEND_API_KEY is unset the invite is still created and the portal shows the code so the
+    # therapist can share it manually.
+    RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+    EMAIL_FROM = os.environ.get("EMAIL_FROM", "Kinetic <onboarding@resend.dev>")
+
+    # Public URL of the admin-web portal. Invite emails link to {PORTAL_URL}/invite/<code>, a page that
+    # opens the app (kinetic://invite/<code>) or shows the code to type in.
+    PORTAL_URL = os.environ.get("PORTAL_URL", "http://localhost:5173").rstrip("/")
+
+    # Expo push service (existing app users get a push for a new doctor invite).
+    EXPO_PUSH_URL = os.environ.get("EXPO_PUSH_URL", "https://exp.host/--/api/v2/push/send")
+
+    INVITE_TTL_DAYS = int(os.environ.get("INVITE_TTL_DAYS", "14"))
+
     # Comma-separated list of origins allowed to call /admin/* from a browser (admin-web's
     # dev server and deployed URL). "*" works for local development but not for a browser
     # request that sends credentials, which this app doesn't use, so "*" is fine here too.

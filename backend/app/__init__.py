@@ -13,8 +13,10 @@ def create_app(config_object=Config):
 
     # The admin-web SPA runs on its own origin (e.g. localhost:5173, or wherever it's
     # deployed) and calls this API directly from the browser, so it needs CORS. Only
-    # /admin/* is opened up; everything else has no browser caller.
-    CORS(app, resources={r"/admin/*": {"origins": app.config["CORS_ORIGINS"]}})
+    # /admin/* and /therapist/* are opened up; the /patient/* endpoints are only called by the native
+    # app (no CORS involved).
+    origins = app.config["CORS_ORIGINS"]
+    CORS(app, resources={r"/admin/*": {"origins": origins}, r"/therapist/*": {"origins": origins}})
 
     supabase_ext.init_app(app)
     register_blueprints(app)

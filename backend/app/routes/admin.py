@@ -42,5 +42,19 @@ def create_therapist():
 
     user_id = created.user.id
     # The handle_new_user trigger inserts the row as role='patient'; promote it to therapist.
-    client.table("users").update({"role": "therapist"}).eq("id", user_id).execute()
+    changes = {"role": "therapist"}
+    # Therapists in the same office can transfer patients to each other, so remember which office.
+    office_name = (body.get("office_name") or "").strip()[:120]
+    if office_name:
+        changes["office_id"] = _find_or_create_office(client, office_name)
+    client.table("users").update(changes).eq("id", user_id).execute()
     return jsonify(id=user_id, email=email), 201
+
+
+def _find_or_create_office(client, name: str) -> str:
+    # Case-insensitive match; escape LIKE wildcards so "100%" doesn't match everything.
+    pattern = name.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    found = client.table("offices").select("id").ilike("name", pattern).limit(1).execute().data
+    if found:
+        return found[0]["id"]
+    return client.table("offices").insert({"name": name}).execute().data[0]["id"]

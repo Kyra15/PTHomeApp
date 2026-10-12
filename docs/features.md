@@ -333,3 +333,32 @@ can understand exactly what happened and give informed clinical guidance.
   implying the full program was done.
 - No form deviations were flagged: show a positive confirmation (e.g., "No issues flagged")
   rather than an empty-looking section.
+
+---
+
+## F14 — Care Team Invitations & Linking
+
+**Name:** Care Team Invitations & Linking
+
+**User goal:** As a therapist, I want to invite a patient by email and see who has accepted, so that I
+know who is on my caseload. As a patient, I want to connect to my doctor by tapping a link or entering a
+code, and to be able to work with more than one doctor.
+
+**Expected behavior:**
+1. The therapist chooses "Invite Patient" in the portal, enters the patient's email (and optionally name).
+2. The patient receives an email with an 8-character code and a link (`/invite/<code>`) that opens the app.
+3. The Invitations page lists every invitation as Pending, Not accepted (expired / declined / cancelled) or
+   Activated (accepted); pending ones can be resent (which also renews an expired one) or cancelled.
+4. A patient must confirm their email before they can accept; the code only works for the email it was sent to.
+5. If the email already belongs to an app user, they also get a push notification, and the invitation appears
+   on their Home Dashboard to accept or decline (no code needed).
+6. A patient can be linked to several doctors; each doctor's prescribed activities are shown separately.
+7. A therapist can transfer a patient to another therapist in the same office; the exercises they prescribed
+   move with the patient, other doctors' activities are untouched, and the patient is notified.
+
+**Error conditions / edge cases:**
+- Invalid, expired, used, or wrong-email code: one generic message (no information about which).
+- Inviting a patient already on your caseload, or an email with a pending invite: blocked with a clear message.
+- Email delivery not configured or failing: the invitation still exists and the code is shown to the therapist.
+- Transfer to a therapist in a different office, or one who is deactivated: rejected.
+

@@ -143,3 +143,47 @@ wants to check in on a patient's technique.
 
 **Outcome:** Admin has a clear, data-backed understanding of what happened in the session and
 has recorded guidance for the care team's records.
+
+---
+
+## Flow 8 — Admin: Invite a Patient and Track the Invitation
+
+**Starting point:** Admin has a new patient who has not used Kinetic yet.
+
+- user - selects "Invite Patient" on the roster or Invitations page [F14]
+- user - enters the patient's email (and optionally their name) and sends it [F14]
+- app - validates the email, creates the invitation, emails the code and link [F14]
+- app - shows the code so it can also be read out or texted, and lists the invitation as Pending [F14]
+- user - later opens Invitations and sees it move to Activated, or resends / cancels it if it is still Pending
+  or has expired [F14]
+
+**Outcome:** The patient appears on the roster once they accept.
+
+---
+
+## Flow 9 — Patient: Accept a Doctor's Invitation
+
+**Starting point:** Patient received an invite email (new user) or a push notification (existing user).
+
+- user - (new user) installs the app, signs up with the invited email, and confirms it via the email link [F01]
+- user - taps the link in the invite email, or opens Connect with a doctor and types the code [F14]
+- app - checks the email is confirmed and matches the invitation, then links the patient to the doctor [F14]
+- user - (existing user) taps the push notification, sees the invitation card on the Home Dashboard, and taps Accept [F14]
+- app - shows the doctor under "Prescribed by" with any activities they have prescribed [F03] [F14]
+
+**Outcome:** The patient is on the doctor's roster; a second doctor can be added the same way.
+
+---
+
+## Flow 10 — Admin: Transfer a Patient to a Colleague
+
+**Starting point:** Patient should move to another therapist in the same office.
+
+- user - selects "Transfer" on the patient's roster row [F14]
+- app - lists the other active therapists in the admin's office [F14]
+- user - picks one and confirms [F14]
+- app - moves the patient and the activities this admin prescribed to the colleague, ends the admin's link,
+  and notifies the patient [F14]
+
+**Outcome:** The patient leaves this admin's roster and appears on the colleague's.
+

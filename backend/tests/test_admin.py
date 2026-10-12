@@ -48,3 +48,19 @@ def test_create_therapist_promotes_role(monkeypatch):
     assert resp.get_json() == {"id": "user-123", "email": "therapist@example.com"}
     fake_client.table.assert_called_with("users")
     fake_client.table.return_value.update.assert_called_with({"role": "therapist"})
+
+
+def test_create_therapist_with_office(monkeypatch):
+    app = create_app(WithAdminKey)
+    fake = MagicMock()
+    fake.auth.admin.create_user.return_value.user.id = "user-9"
+    fake.table.return_value.select.return_value.ilike.return_value.limit.return_value.execute.return_value.data = []
+    fake.table.return_value.insert.return_value.execute.return_value.data = [{"id": "office-1"}]
+    monkeypatch.setattr("app.routes.admin.supabase_ext.client", lambda _app: fake)
+    resp = app.test_client().post(
+        "/admin/therapists",
+        json={"email": "t@x.com", "password": "pw123456", "first_name": "A", "last_name": "B", "office_name": "Rehab Partners"},
+        headers={"X-Admin-Key": "test-key-123"},
+    )
+    assert resp.status_code == 201
+    fake.table.return_value.update.assert_called_with({"role": "therapist", "office_id": "office-1"})

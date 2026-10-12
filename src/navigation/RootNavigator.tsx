@@ -11,6 +11,7 @@ import { DashboardScreen } from '../screens/DashboardScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { ExerciseScreen } from '../screens/ExerciseScreen';
 import { CompleteScreen } from '../screens/CompleteScreen';
+import { ConnectScreen } from '../screens/ConnectScreen';
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const AppStack = createNativeStackNavigator<RootStackParamList>();
@@ -33,6 +34,7 @@ export function RootNavigator() {
       <AppStack.Screen name="Home" component={HomeScreen} />
       <AppStack.Screen name="Exercise" component={ExerciseScreen} />
       <AppStack.Screen name="Complete" component={CompleteScreen} />
+      <AppStack.Screen name="Connect" component={ConnectScreen} />
     </AppStack.Navigator>
   ) : (
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>

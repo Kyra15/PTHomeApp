@@ -4,6 +4,8 @@ import { RequireAuth } from './routes/RequireAuth';
 import { SignInPage } from './pages/SignInPage';
 import { SignUpPage } from './pages/SignUpPage';
 import { RosterPage } from './pages/RosterPage';
+import { InvitationsPage } from './pages/InvitationsPage';
+import { InvitePage } from './pages/InvitePage';
 import { ComingSoonPage } from './pages/ComingSoonPage';
 import './App.css';
 
@@ -19,6 +21,15 @@ export default function App() {
             element={
               <RequireAuth>
                 <RosterPage />
+              </RequireAuth>
+            }
+          />
+          <Route path="/invite/:code" element={<InvitePage />} />
+          <Route
+            path="/invitations"
+            element={
+              <RequireAuth>
+                <InvitationsPage />
               </RequireAuth>
             }
           />
