@@ -65,6 +65,8 @@ export interface Invitation {
 
 export interface DeliveryInfo {
   email_sent: boolean;
+  /** null when sent; "not_configured" when the server has no RESEND_API_KEY; otherwise why sending failed. */
+  email_error: string | null;
   push_sent: boolean;
   existing_patient: boolean;
   invite_link: string;

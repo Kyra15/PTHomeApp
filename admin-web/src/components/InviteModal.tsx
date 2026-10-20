@@ -10,6 +10,13 @@ interface Props {
   onCreated: () => void;
 }
 
+export function emailProblem(error: string | null): string {
+  if (error === 'not_configured') {
+    return "The server has no email provider set up (RESEND_API_KEY is missing), so no email was sent. Share the code or link below yourself.";
+  }
+  return `The email couldn't be sent${error ? `: ${error}` : ''}. Share the code or link below yourself.`;
+}
+
 /** Invite a patient by email. After sending, shows the code so it can also be read out or texted. */
 export function InviteModal({ onClose, onCreated }: Props) {
   const [email, setEmail] = useState('');
@@ -47,7 +54,7 @@ export function InviteModal({ onClose, onCreated }: Props) {
         <p className="modal-text">
           {sent.email_sent
             ? `We emailed ${sent.invitation.email}.`
-            : "Email delivery isn't set up (or failed), so share the code or link below yourself."}
+            : emailProblem(sent.email_error)}
           {sent.existing_patient
             ? sent.push_sent
               ? ' They already use Kinetic, so they also got a push notification and an in-app invitation.'

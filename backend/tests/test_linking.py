@@ -19,7 +19,7 @@ def env(monkeypatch):
     db = FakeSupabase()
     monkeypatch.setattr("app.auth.supabase_ext.client", lambda _app: db)
     sent = {"email": [], "push": []}
-    monkeypatch.setattr("app.routes.linking.send_invite_email", lambda cfg, **kw: sent["email"].append(kw) or True)
+    monkeypatch.setattr("app.routes.linking.send_invite_email", lambda cfg, **kw: sent["email"].append(kw) or (True, None))
     monkeypatch.setattr("app.routes.linking.send_push", lambda cfg, tokens, **kw: sent["push"].append((tokens, kw)) or True)
     client = create_app(Cfg).test_client()
     t1 = db.add_user("t1", "therapist", "dr.one@clinic.com", office="o1", first="Grace", last="Hopper")

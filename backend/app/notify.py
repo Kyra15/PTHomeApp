@@ -8,11 +8,15 @@ log = logging.getLogger(__name__)
 TIMEOUT = 8.0
 
 
-def send_invite_email(app_config, *, to: str, therapist_name: str, code: str, link: str, existing_user: bool) -> bool:
+def send_invite_email(
+    app_config, *, to: str, therapist_name: str, code: str, link: str, existing_user: bool
+) -> tuple[bool, str | None]:
+    """Returns (sent, reason). reason is None on success, "not_configured" when RESEND_API_KEY is unset,
+    otherwise a short human-readable explanation of why Resend (or the network) refused it."""
     key = app_config.get("RESEND_API_KEY")
     if not key:
-        log.info("RESEND_API_KEY not set; skipping invite email to %s", to)
-        return False
+        log.warning("RESEND_API_KEY is not set; invite email to %s was NOT sent", to)
+        return False, "not_configured"
     pretty = f"{code[:4]}-{code[4:]}"
     if existing_user:
         action = (
@@ -42,11 +46,18 @@ def send_invite_email(app_config, *, to: str, therapist_name: str, code: str, li
             },
             timeout=TIMEOUT,
         )
-        resp.raise_for_status()
-        return True
+        if resp.status_code >= 400:
+            try:
+                detail = (resp.json().get("message") or "")[:240]
+            except Exception:
+                detail = ""
+            reason = f"Resend rejected it (HTTP {resp.status_code}): {detail}".rstrip(": ")
+            log.warning("invite email to %s failed: %s", to, reason)
+            return False, reason
+        return True, None
     except Exception as exc:
         log.warning("invite email to %s failed: %s", to, type(exc).__name__)
-        return False
+        return False, f"Couldn't reach Resend ({type(exc).__name__})"
 
 
 def send_push(app_config, tokens: list[str], *, title: str, body: str, data: dict | None = None) -> bool:

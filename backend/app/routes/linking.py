@@ -106,7 +106,7 @@ def _deliver(inv: dict, therapist: dict) -> dict:
     link = f"{current_app.config['PORTAL_URL']}/invite/{code}"
     name = display_name(therapist)
     existing = bool(inv.get("patient_id"))
-    email_sent = send_invite_email(
+    email_sent, email_error = send_invite_email(
         current_app.config, to=inv["email"], therapist_name=name, code=code, link=link, existing_user=existing
     )
     if email_sent:
@@ -119,7 +119,7 @@ def _deliver(inv: dict, therapist: dict) -> dict:
             body=f"{name} invited you to connect on Kinetic.",
             data={"type": "doctor_invite", "invitation_id": inv["id"]},
         )
-    return {"email_sent": email_sent, "push_sent": push_sent, "existing_patient": existing, "invite_link": link}
+    return {"email_sent": email_sent, "email_error": email_error, "push_sent": push_sent, "existing_patient": existing, "invite_link": link}
 
 
 # ---------- therapist: invitations ----------

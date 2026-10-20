@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Copy, Plus, RefreshCw, XCircle } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
-import { InviteModal } from '../components/InviteModal';
+import { InviteModal, emailProblem } from '../components/InviteModal';
 import { InviteStatusPill } from '../components/InviteStatusPill';
 import { formatCode, listInvitations, resendInvitation, revokeInvitation } from '../lib/api';
 import type { Invitation } from '../lib/api';
@@ -63,7 +63,7 @@ export function InvitationsPage() {
     setBusyId(null);
     if (err) return setError(err);
     setError(null);
-    setNotice(data?.email_sent ? `Invitation re-sent to ${inv.email}.` : `Couldn't email ${inv.email}; share code ${formatCode(inv.code)} instead.`);
+    setNotice(data?.email_sent ? `Invitation re-sent to ${inv.email}.` : `${emailProblem(data?.email_error ?? null)} Code: ${formatCode(inv.code)}`);
     load();
   }
 
