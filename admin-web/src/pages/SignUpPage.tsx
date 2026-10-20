@@ -6,7 +6,7 @@ import { Logo } from '../components/Logo';
 
 export function SignUpPage() {
   const { session, signUp } = useAuth();
-  const [accessCode, setAccessCode] = useState('');
+  const [officeName, setOfficeName] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -17,7 +17,6 @@ export function SignUpPage() {
   if (session) return <Navigate to="/" replace />;
 
   const canSubmit =
-    accessCode.trim().length > 0 &&
     firstName.trim().length > 0 &&
     lastName.trim().length > 0 &&
     email.trim().length > 0 &&
@@ -28,7 +27,7 @@ export function SignUpPage() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const { error: err } = await signUp({ accessCode, firstName, lastName, email, password });
+    const { error: err } = await signUp({ officeName, firstName, lastName, email, password });
     setBusy(false);
     if (err) setError(err); // on success the router redirects to the roster automatically
   }
@@ -60,17 +59,6 @@ export function SignUpPage() {
               {error}
             </div>
           ) : null}
-          <div className="field">
-            <label htmlFor="accessCode">Organization access code</label>
-            <input
-              id="accessCode"
-              type="text"
-              value={accessCode}
-              onChange={(e) => setAccessCode(e.target.value)}
-              required
-            />
-            <p className="field-hint">Get this from your practice administrator.</p>
-          </div>
           <div className="field">
             <label htmlFor="firstName">First name</label>
             <input
@@ -115,6 +103,18 @@ export function SignUpPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
             />
+          </div>
+          <div className="field">
+            <label htmlFor="officeName">Office / clinic name (optional)</label>
+            <input
+              id="officeName"
+              type="text"
+              autoComplete="organization"
+              placeholder="Rehab Partners"
+              value={officeName}
+              onChange={(e) => setOfficeName(e.target.value)}
+            />
+            <p className="field-hint">Use the same name as your coworkers so you can transfer patients to each other.</p>
           </div>
           <button className="btn-primary" type="submit" disabled={!canSubmit}>
             {busy ? 'Creating account…' : 'Create Account'}

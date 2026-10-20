@@ -41,7 +41,7 @@ my patients' programs without exposing that functionality in the patient-facing 
 
 **Expected behavior:**
 1. Admins use a distinct sign-in surface (separate portal/URL from the patient app).
-2. Admin accounts are provisioned by the organization (not self-serve sign-up in the MVP).
+2. Admins create their own account in the portal (name, work email, password, optional office name); the role is assigned by the server, and an admin only ever sees patients linked to them.
 3. On successful sign-in, the admin is taken to the Patient Roster Dashboard (F09).
 4. Sessions persist per standard web session handling; admin can sign out explicitly.
 

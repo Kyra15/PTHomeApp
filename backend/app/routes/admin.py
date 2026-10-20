@@ -7,14 +7,11 @@ bp = Blueprint("admin", __name__, url_prefix="/admin")
 
 @bp.post("/therapists")
 def create_therapist():
-    """Provision a therapist/admin account (F02 #2: admins are provisioned by the org, not
-    self-serve). Protected by X-Admin-Key so only whoever holds that secret can call it —
-    there is no therapist sign-up screen anywhere in the app on purpose.
-    """
-    admin_key = current_app.config["ADMIN_PROVISION_KEY"]
-    if not admin_key or request.headers.get("X-Admin-Key") != admin_key:
-        return jsonify(error="unauthorized"), 401
+    """Create a therapist/admin account (called by the portal's "Create account" form).
 
+    Open sign-up: no organization code is required. The role is set here on the server — a client can
+    never pick its own role — and a therapist only ever sees patients linked to them (Row Level Security).
+    """
     body = request.get_json(silent=True) or {}
     email = (body.get("email") or "").strip()
     password = body.get("password") or ""

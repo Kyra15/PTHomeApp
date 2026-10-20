@@ -5,15 +5,14 @@ import { provisionTherapist } from '../lib/api';
 
 type Result = { error: string | null };
 
-// Admins are still provisioned, not fully self-serve (F02 #2): creating an account requires
-// the organization's access code, checked server-side by the backend before any Supabase user
-// is created. See src/lib/api.ts.
+// Clinician sign-up is open (no organization code). The backend creates the Supabase user and sets
+// its role to 'therapist' server-side. See src/lib/api.ts.
 interface AuthValue {
   session: Session | null;
   loading: boolean;
   firstName: string | null;
   signIn: (email: string, password: string) => Promise<Result>;
-  signUp: (input: { accessCode: string; firstName: string; lastName: string; email: string; password: string }) => Promise<Result>;
+  signUp: (input: { officeName: string; firstName: string; lastName: string; email: string; password: string }) => Promise<Result>;
   signOut: () => Promise<void>;
 }
 
@@ -78,7 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signUp = useCallback(
-    async (input: { accessCode: string; firstName: string; lastName: string; email: string; password: string }): Promise<Result> => {
+    async (input: { officeName: string; firstName: string; lastName: string; email: string; password: string }): Promise<Result> => {
       const { error } = await provisionTherapist(input);
       if (error) return { error };
       // Account now exists server-side; sign in to start the session.

@@ -14,16 +14,14 @@ Build for deployment: `npm run build` (output in `dist/`).
 
 ## Accounts
 
-There's no therapist sign-up screen that's wide open to anyone — **Create a clinician account**
-requires an **organization access code**, which is just your backend's `ADMIN_PROVISION_KEY`
-(see `backend/README.md`). The sign-up form calls `POST /admin/therapists` on the backend; the
-backend checks the code, creates the Supabase user, and sets its role to `therapist`. The
-publishable key in `.env.local` can never do this on its own, by design.
+**Create a clinician account** is open sign-up: name, email, password and (optionally) an office / clinic
+name. The form calls `POST /admin/therapists` on the backend, which creates the Supabase user and sets its role
+to `therapist` (the publishable key in `.env.local` can never set a role on its own). Therapists who enter the
+same office name can transfer patients to each other.
 
 ## Patient roster
 
-The dashboard queries `public.users` for patients whose `assigned_therapist_id` is the signed-in
-therapist. Row Level Security enforces this server-side, so a therapist can only ever see their
+The dashboard lists the signed-in therapist's active `care_links` (patients on their caseload). Row Level Security enforces this server-side, so a therapist can only ever see their
 own patients. There's no enrollment UI yet (task 3.1+), so until a patient is assigned to a
 therapist — by hand, in the Supabase table editor, by setting `users.assigned_therapist_id` — the
 roster shows "No patients yet".

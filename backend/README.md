@@ -12,13 +12,12 @@ pytest
 
 - `GET /health` – 200 whenever the server is up; body reports the Supabase status.
 - `GET /health/db` – 200 only if Supabase is reachable, otherwise 503.
-- `POST /admin/therapists` – provisions a therapist/admin account (name, email, password).
-  Requires header `X-Admin-Key: <ADMIN_PROVISION_KEY>`. There is no therapist sign-up screen
-  anywhere on purpose — this is the only way to create one. Example:
+- `POST /admin/therapists` – creates a therapist account (first_name, last_name, email, password, optional
+  `office_name`). Open sign-up, no code or header needed; this is what the portal's "Create account" form calls.
+  The role is set server-side. Example:
   ```bash
-  curl -X POST http://127.0.0.1:5000/admin/therapists \
-    -H "X-Admin-Key: $ADMIN_PROVISION_KEY" -H "Content-Type: application/json" \
-    -d '{"email":"pt@example.com","password":"a-strong-password","first_name":"Grace","last_name":"Hopper"}'
+  curl -X POST http://127.0.0.1:5000/admin/therapists -H "Content-Type: application/json" \
+    -d '{"email":"pt@example.com","password":"a-strong-password","first_name":"Grace","last_name":"Hopper","office_name":"Rehab Partners"}'
   ```
 - Database schema lives in `supabase/migrations/`; `supabase/tests_rls.sql` checks the RLS policies.
 
@@ -40,6 +39,6 @@ Patient (iPhone app):
 - `POST /patient/push-token` `{token, platform}`
 
 Env vars: `RESEND_API_KEY`, `EMAIL_FROM`, `PORTAL_URL` (link target in emails), optional `INVITE_TTL_DAYS`, `EXPO_PUSH_URL`.
-`POST /admin/therapists` also accepts `office_name` so therapists in the same office can transfer patients between them.
+Therapists who enter the same office name at sign-up (case-insensitive) can transfer patients between each other.
 Supabase dashboard: Authentication → Providers → Email → **Confirm email must be ON** (that is what forces patients to verify).
 

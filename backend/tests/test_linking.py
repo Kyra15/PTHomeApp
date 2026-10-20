@@ -10,7 +10,6 @@ from tests.fakes import FakeSupabase
 class Cfg(Config):
     SUPABASE_URL = "https://example.supabase.co"
     SUPABASE_SECRET_KEY = "sb_secret_fake"
-    ADMIN_PROVISION_KEY = "k"
     RESEND_API_KEY = ""          # no email provider in tests
     PORTAL_URL = "https://portal.test"
 

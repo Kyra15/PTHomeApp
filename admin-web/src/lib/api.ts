@@ -4,7 +4,7 @@ import { supabase } from './supabase';
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? '';
 
 export interface SignUpInput {
-  accessCode: string;
+  officeName: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -16,19 +16,16 @@ export async function provisionTherapist(input: SignUpInput): Promise<{ error: s
   try {
     const resp = await fetch(`${API_BASE}/admin/therapists`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Admin-Key': input.accessCode,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: input.email.trim(),
         password: input.password,
         first_name: input.firstName.trim(),
         last_name: input.lastName.trim(),
+        office_name: input.officeName.trim(),
       }),
     });
     if (resp.status === 201) return { error: null };
-    if (resp.status === 401) return { error: 'Incorrect organization access code.' };
     const body = await resp.json().catch(() => ({}));
     if (resp.status === 400 && typeof body.error === 'string') {
       // Validation errors are fine to show as-is; Supabase auth errors (e.g. "already

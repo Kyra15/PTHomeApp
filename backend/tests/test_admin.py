@@ -4,16 +4,16 @@ from app import create_app
 from app.config import Config
 
 
-class WithAdminKey(Config):
+class WithAdminKey(Config):  # name kept; no key is needed any more
     SUPABASE_URL = "https://example.supabase.co"
     SUPABASE_SECRET_KEY = "sb_secret_fake"
-    ADMIN_PROVISION_KEY = "test-key-123"
 
 
-def test_create_therapist_requires_admin_key():
+def test_create_therapist_needs_no_organization_code():
+    """No X-Admin-Key / access code: an empty body is a validation error (400), not unauthorized (401)."""
     client = create_app(WithAdminKey).test_client()
     resp = client.post("/admin/therapists", json={})
-    assert resp.status_code == 401
+    assert resp.status_code == 400
 
 
 def test_create_therapist_validates_body():
@@ -21,7 +21,6 @@ def test_create_therapist_validates_body():
     resp = client.post(
         "/admin/therapists",
         json={"email": "a@b.com"},
-        headers={"X-Admin-Key": "test-key-123"},
     )
     assert resp.status_code == 400
 
@@ -42,7 +41,6 @@ def test_create_therapist_promotes_role(monkeypatch):
             "first_name": "Grace",
             "last_name": "Hopper",
         },
-        headers={"X-Admin-Key": "test-key-123"},
     )
     assert resp.status_code == 201
     assert resp.get_json() == {"id": "user-123", "email": "therapist@example.com"}
@@ -60,7 +58,6 @@ def test_create_therapist_with_office(monkeypatch):
     resp = app.test_client().post(
         "/admin/therapists",
         json={"email": "t@x.com", "password": "pw123456", "first_name": "A", "last_name": "B", "office_name": "Rehab Partners"},
-        headers={"X-Admin-Key": "test-key-123"},
     )
     assert resp.status_code == 201
     fake.table.return_value.update.assert_called_with({"role": "therapist", "office_id": "office-1"})
