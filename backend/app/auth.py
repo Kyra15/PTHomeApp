@@ -29,11 +29,14 @@ def email_confirmed(auth_user) -> bool:
     return bool(getattr(auth_user, "email_confirmed_at", None) or getattr(auth_user, "confirmed_at", None))
 
 
-def require_role(role: str):
-    """Decorator: 401 without a valid token, 403 if the account isn't an active `role`.
+def require_role(role: str | tuple[str, ...]):
+    """Decorator: 401 without a valid token, 403 if the account isn't an active `role` (or one of the
+    roles, when given a tuple).
 
     On success sets g.client (service-role Supabase client), g.auth_user and g.profile.
     """
+
+    allowed = (role,) if isinstance(role, str) else tuple(role)
 
     def decorator(fn):
         @wraps(fn)
@@ -51,7 +54,7 @@ def require_role(role: str):
             rows = (
                 client.table("users").select(PROFILE_COLUMNS).eq("id", auth_user.id).limit(1).execute().data
             )
-            if not rows or rows[0].get("role") != role or rows[0].get("active") is False:
+            if not rows or rows[0].get("role") not in allowed or rows[0].get("active") is False:
                 return jsonify(error="forbidden"), 403
             g.client, g.auth_user, g.profile = client, auth_user, rows[0]
             return fn(*args, **kwargs)

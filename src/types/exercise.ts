@@ -16,11 +16,24 @@ export type DiagramKind =
   | 'raise-front'
   | 'raise-side'
   | 'circle-shoulder'
-  | 'circle-wrist';
+  | 'circle-wrist'
+  /** Generic angle gauge for exercises without a dedicated figure (knee, hip, ankle, back…). */
+  | 'dial';
+
+export type BodyArea = 'Shoulder' | 'Elbow & Wrist' | 'Hip' | 'Knee' | 'Ankle & Foot' | 'Back & Core' | string;
 
 export interface Exercise {
+  /** The library slug (same as public.exercises.slug), e.g. "shoulder-flexion". */
   id: string;
   title: string;
+  bodyArea: BodyArea;
+  /** Where/how to hold the phone (shown on the pre-exercise screen, F05). */
+  positioningTip: string;
+  defaultSets: number;
+  estMinutes: number;
+  difficulty: 'easy' | 'moderate' | 'hard';
+  equipment: string;
+  tags: string[];
   shortDescription: string;
   /** Plain-language, step-by-step instructions. Also used for spoken guidance. */
   instructions: string[];
@@ -46,6 +59,29 @@ export type EnginePhase =
   | 'intro'
   | 'calibrating'
   | 'active'
+  | 'paused'
+  | 'rest'
   | 'finished';
+
+/** What a finished (or ended-early) session produced — shown on the summary and POSTed to exercise_logs. */
+export interface SessionSummary {
+  exerciseId: string;
+  completed: boolean;
+  repsCompleted: number;
+  setsCompleted: number;
+  targetSets: number;
+  targetReps: number;
+  /** Seconds of active exercising (pauses and rests excluded). */
+  durationSeconds: number;
+  /** Peak tilt (degrees from the start position) reached on each counted rep; empty for rotation exercises. */
+  romPerRep: number[];
+  avgRomDeg: number | null;
+  peakRomDeg: number | null;
+  /** Achieved sensor rates for this session (task 2.4 evaluation data). */
+  accelHz: number | null;
+  gyroHz: number | null;
+  requestedHz: number;
+  pauses: number;
+}
 
 export type TiltLeg = 'outbound' | 'inbound';

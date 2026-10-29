@@ -7,6 +7,7 @@ import { RosterPage } from './pages/RosterPage';
 import { InvitationsPage } from './pages/InvitationsPage';
 import { InvitePage } from './pages/InvitePage';
 import { ComingSoonPage } from './pages/ComingSoonPage';
+import { ExerciseLibraryPage } from './pages/ExerciseLibraryPage';
 import './App.css';
 
 export default function App() {
@@ -45,7 +46,7 @@ export default function App() {
             path="/exercise-library"
             element={
               <RequireAuth>
-                <ComingSoonPage title="Exercise Library" />
+                <ExerciseLibraryPage />
               </RequireAuth>
             }
           />

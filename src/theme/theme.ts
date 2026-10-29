@@ -38,6 +38,14 @@ export const colors = {
 
   celebrate: '#B7791F',
 
+  // Dashboard / pre-exercise call-to-action (docs/mockups p2, p3). Darkened from the mockup's coral so
+  // white 26px bold text still clears WCAG AA for large text.
+  action: '#D9542F',
+  actionSoft: '#FCE9E3',
+  successSoft: '#E3F2E7',
+  dangerSoft: '#F6E2E2',
+  restSoft: '#ECEFF0',
+
   danger: '#9B2C2C',
   disabled: '#B8B2A4',
 } as const;
