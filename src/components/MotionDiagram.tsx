@@ -1,5 +1,5 @@
 import React from 'react';
-import Svg, { Circle, Line, Rect, G } from 'react-native-svg';
+import Svg, { Circle, Line, Rect, G, Path } from 'react-native-svg';
 import { DiagramKind } from '../types/exercise';
 import { colors } from '../theme/theme';
 
@@ -12,6 +12,8 @@ interface Props {
   angleDeg: number;
   accentColor: string;
   size?: number;
+  /** 'dial' only: where the target tick sits (degrees). Omit for a full-circle rotation dial. */
+  targetDeg?: number;
 }
 
 const VB = 300;
@@ -122,13 +124,62 @@ function WristCircleFigure({ angleDeg, accentColor }: { angleDeg: number; accent
   );
 }
 
-export function MotionDiagram({ kind, angleDeg, accentColor, size = 260 }: Props) {
+/** Point on an arc centred at (cx, cy) where 0° points straight down and angles sweep up to the right. */
+function arcPoint(cx: number, cy: number, r: number, deg: number) {
+  const rad = toRad(deg);
+  return { x: cx + r * Math.sin(rad), y: cy + r * Math.cos(rad) };
+}
+
+/**
+ * Generic gauge for exercises that don't have their own figure (knee, hip, ankle, back…).
+ * Tilt: a 0→120° fan, a tick at the target, and a needle at the current angle.
+ * Rotation (no targetDeg): a full ring with a dot sweeping around it.
+ */
+function DialFigure({ angleDeg, accentColor, targetDeg }: { angleDeg: number; accentColor: string; targetDeg?: number }) {
+  const c = { x: 150, y: 150 };
+  const r = 110;
+  if (targetDeg === undefined) {
+    const dot = pointOnLoop(c.x, c.y, r, angleDeg % 360);
+    return (
+      <G>
+        <Circle cx={c.x} cy={c.y} r={r} stroke={colors.border} strokeWidth={14} fill="none" />
+        <Circle cx={c.x} cy={c.y} r={10} fill={colors.textSecondary} />
+        <Line x1={c.x} y1={c.y} x2={dot.x} y2={dot.y} stroke={accentColor} strokeWidth={10} strokeLinecap="round" />
+        <Circle cx={dot.x} cy={dot.y} r={18} fill={accentColor} />
+      </G>
+    );
+  }
+  const max = Math.max(120, targetDeg + 20);
+  const shown = Math.max(0, Math.min(max, angleDeg));
+  const scale = (d: number) => (d / max) * 150; // map 0..max onto a 150° sweep
+  const start = arcPoint(c.x, c.y, r, 0);
+  const end = arcPoint(c.x, c.y, r, 150);
+  const fill = arcPoint(c.x, c.y, r, scale(shown));
+  const tickIn = arcPoint(c.x, c.y, r - 26, scale(targetDeg));
+  const tickOut = arcPoint(c.x, c.y, r + 22, scale(targetDeg));
+  const needle = arcPoint(c.x, c.y, r - 14, scale(shown));
+  const big = scale(shown) > 180 ? 1 : 0;
+  return (
+    <G>
+      <Path d={`M ${start.x} ${start.y} A ${r} ${r} 0 0 0 ${end.x} ${end.y}`} stroke={colors.border} strokeWidth={16} strokeLinecap="round" fill="none" />
+      {shown > 0.5 && (
+        <Path d={`M ${start.x} ${start.y} A ${r} ${r} 0 ${big} 0 ${fill.x} ${fill.y}`} stroke={accentColor} strokeWidth={16} strokeLinecap="round" fill="none" />
+      )}
+      <Line x1={tickIn.x} y1={tickIn.y} x2={tickOut.x} y2={tickOut.y} stroke={colors.motionSuccess} strokeWidth={8} strokeLinecap="round" />
+      <Line x1={c.x} y1={c.y} x2={needle.x} y2={needle.y} stroke={accentColor} strokeWidth={10} strokeLinecap="round" />
+      <Circle cx={c.x} cy={c.y} r={14} fill={accentColor} />
+    </G>
+  );
+}
+
+export function MotionDiagram({ kind, angleDeg, accentColor, size = 260, targetDeg }: Props) {
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
       {kind === 'raise-front' && <FrontRaiseFigure angleDeg={angleDeg} accentColor={accentColor} />}
       {kind === 'raise-side' && <SideRaiseFigure angleDeg={angleDeg} accentColor={accentColor} />}
       {kind === 'circle-shoulder' && <ShoulderCircleFigure angleDeg={angleDeg} accentColor={accentColor} />}
       {kind === 'circle-wrist' && <WristCircleFigure angleDeg={angleDeg} accentColor={accentColor} />}
+      {kind === 'dial' && <DialFigure angleDeg={angleDeg} accentColor={accentColor} targetDeg={targetDeg} />}
     </Svg>
   );
 }

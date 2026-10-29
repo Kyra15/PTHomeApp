@@ -42,3 +42,28 @@ Env vars: `RESEND_API_KEY`, `EMAIL_FROM`, `PORTAL_URL` (link target in emails), 
 Therapists who enter the same office name at sign-up (case-insensitive) can transfer patients between each other.
 Supabase dashboard: Authentication → Providers → Email → **Confirm email must be ON** (that is what forces patients to verify).
 
+
+### Library, schedule & sessions (catch-up sprint, migrations `0006` + `0007`)
+
+Run in the Supabase SQL editor, in order:
+
+1. `supabase/migrations/0006_exercise_library_schedule.sql` — library columns on `exercises`
+   (slug, instructions, positioning tip, sensor settings, tags), `plans.status` (active/paused/ended),
+   and `exercise_logs.local_date` / sets / completed.
+2. `supabase/migrations/0007_seed_exercise_library.sql` — the 20-exercise library. **Generated** from
+   `shared/exercise-library.json` by `python backend/scripts/gen_exercise_seed.py`; edit the JSON, re-run
+   the script, re-run the SQL (it upserts on slug).
+3. (dev only) `supabase/dev_seed_test_program.sql` — put your test patient + therapist emails in, run it,
+   and that patient gets a 4-exercise program so the dashboard has real data.
+
+| Endpoint | Who | What |
+|---|---|---|
+| `GET /exercises?body_area=&q=` (also `/therapist/exercises`) | patient, therapist | Library, A→Z, filter by body area, search name/description/tags |
+| `GET /exercises/body-areas` | patient, therapist | Body areas + counts |
+| `GET /patient/schedule?date=YYYY-MM-DD` | patient | Exercises due that day (task 2.2) |
+| `GET /patient/today?date=YYYY-MM-DD` | patient | Dashboard payload: status, today's exercises with done flags, week strip, streak, adherence %, ROM change, up next (task 2.1) |
+| `POST /patient/sessions` | patient | Save a finished or ended-early session to `exercise_logs` |
+| `POST /patient/push-test` | patient | Task 1.7: send a test push to my registered phones |
+
+`date` is always the **phone's** local date, so "today" follows the patient's time zone. Scheduling
+rules live in `app/schedule.py` (pure functions, tested in `tests/test_schedule.py` against 3 schedules).

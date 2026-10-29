@@ -18,12 +18,18 @@ class Query:
     def upsert(self, row, on_conflict=None): self.op, self.payload, self._on_conflict = "upsert", row, on_conflict; return self
     def eq(self, col, val): self.filters.append(("eq", col, val)); return self
     def ilike(self, col, val): self.filters.append(("ilike", col, val)); return self
+    def gte(self, col, val): self.filters.append(("gte", col, val)); return self
+    def in_(self, col, vals): self.filters.append(("in", col, list(vals))); return self
     def order(self, col, desc=False): self._order = (col, desc); return self
     def limit(self, n): self._limit = n; return self
 
     def _match(self, row):
         for kind, col, val in self.filters:
             if kind == "eq" and row.get(col) != val:
+                return False
+            if kind == "gte" and not (row.get(col) is not None and str(row.get(col)) >= str(val)):
+                return False
+            if kind == "in" and row.get(col) not in val:
                 return False
             if kind == "ilike" and str(row.get(col, "")).lower() != str(val).replace("\\", "").lower():
                 return False
