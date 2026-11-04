@@ -28,8 +28,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Reject anyone who isn't an active therapist, even if their Supabase credentials are valid
   // (e.g. a patient account, or a therapist who was deactivated after their last sign-in).
+  // Filter by id explicitly: RLS also lets a therapist read their patients' rows, so an unfiltered
+  // `.single()` fails (and signed the therapist out) as soon as they had a linked patient.
   const rejectIfNotActiveTherapist = useCallback(async (): Promise<string | null> => {
-    const { data, error } = await supabase.from('users').select('role, active').single();
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) {
+      await supabase.auth.signOut();
+      return BLOCKED_OR_WRONG;
+    }
+    const { data, error } = await supabase.from('users').select('role, active').eq('id', auth.user.id).maybeSingle();
     if (error || !data || data.role !== 'therapist' || data.active === false) {
       await supabase.auth.signOut();
       return BLOCKED_OR_WRONG;

@@ -37,10 +37,10 @@ is explicitly excluded from this first release.
 
 | Piece | Choice | Status |
 |---|---|---|
-| Patient app | React Native (Expo), iOS-only for the MVP | Prototype exists in the repo root |
-| Backend | Flask (Python), deployed on Render | Skeleton with `/health` built |
+| Patient app | React Native (Expo), iOS-only for the MVP | Sign-in, doctor invites, today's program, live motion tracking, session saving |
+| Backend | Flask (Python), deployed on Render | Accounts, invitations/linking, programs, schedule, sessions |
 | Database & auth | Supabase (Postgres + Row Level Security) | Core schema and RLS policies written |
-| Admin portal | Web app (planned: React) | Placeholder folder only |
+| Admin portal | React + Vite web app (`admin-web/`) | Sign-up/in, roster, invitations, transfers, exercise library, program editor |
 | Push notifications | Apple Push Notification service (APNs) | Not started |
 
 Because the app handles personal health information, backend and hosting choices will need
@@ -91,9 +91,15 @@ never commit it or put it in the app.
 
 ### Database (Supabase)
 
-Run each file in `backend/supabase/migrations/` in order (`0001`, `0002`, then `0003`) in the Supabase SQL Editor, then run
+Run each file in `backend/supabase/migrations/` in order (`0001` through `0007`) in the Supabase SQL Editor, then run
 `backend/supabase/tests_rls.sql` to check the access rules. Every row it returns should show
 `passed = true`.
+
+## Demo
+
+[`docs/demo-checklist.md`](./docs/demo-checklist.md) walks through the core demo — create a doctor and a patient
+account, link them, assign a varied exercise program, and complete it on the iPhone — plus a pre-demo checklist
+and a backup script (`backend/scripts/demo_setup.py`) that creates ready-to-go demo accounts.
 
 ## Repository Structure
 
@@ -107,7 +113,7 @@ Run each file in `backend/supabase/migrations/` in order (`0001`, `0002`, then `
 │   ├── supabase/           #   SQL migrations and RLS tests
 │   ├── tests/              #   pytest tests
 │   └── render.yaml         #   Render deployment config
-├── admin-web/              # admin portal (placeholder)
+├── admin-web/              # clinician web portal (React + Vite)
 ├── todo.md
 └── docs/
     ├── mvp.md              # MVP scope, feature list, and what's excluded

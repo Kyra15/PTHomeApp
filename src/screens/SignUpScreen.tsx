@@ -17,6 +17,7 @@ export function SignUpScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const canSubmit =
@@ -29,9 +30,13 @@ export function SignUpScreen({ navigation }: Props) {
   async function submit() {
     setBusy(true);
     setMessage(null);
-    const { error } = await signUp(firstName, lastName, email, password);
+    setNotice(null);
+    const { error, notice: info } = await signUp(firstName, lastName, email, password);
     setBusy(false);
-    if (error) setMessage(error); // on success the navigator switches to the dashboard automatically
+    if (error) setMessage(error);
+    // With email confirmation on there's no session yet, so show "check your email" (not as an error).
+    // Otherwise the navigator switches to the dashboard automatically.
+    else if (info) setNotice(info);
   }
 
   return (
@@ -78,6 +83,11 @@ export function SignUpScreen({ navigation }: Props) {
               {message}
             </Text>
           ) : null}
+          {notice ? (
+            <Text accessibilityLiveRegion="polite" style={styles.notice}>
+              {notice}
+            </Text>
+          ) : null}
           <BigButton label={busy ? 'Creating…' : 'Create Account'} onPress={submit} disabled={!canSubmit} />
           <BigButton
             label="I already have an account"
@@ -96,4 +106,13 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xxl },
   title: { ...type.h1, color: colors.textPrimary, marginBottom: spacing.lg },
   error: { ...type.body, color: colors.danger, marginBottom: spacing.md },
+  notice: {
+    ...type.body,
+    color: colors.motionSuccess,
+    backgroundColor: colors.successSoft,
+    padding: spacing.md,
+    borderRadius: 12,
+    marginBottom: spacing.md,
+    overflow: 'hidden',
+  },
 });

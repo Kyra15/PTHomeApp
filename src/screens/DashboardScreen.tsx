@@ -317,7 +317,7 @@ function ProgramCard({
             <Pressable
               key={item.plan_id}
               accessibilityRole="button"
-              accessibilityLabel={`${item.exercise.name}, ${item.sets} sets of ${item.reps}. ${item.done ? 'Done.' : 'Not done yet.'}`}
+              accessibilityLabel={`${item.exercise.name}, ${item.sets} ${item.sets === 1 ? 'set' : 'sets'} of ${item.reps}. ${item.done ? 'Done.' : 'Not done yet.'}`}
               onPress={() => onStart(item)}
               style={({ pressed }) => [styles.exerciseRow, pressed && { opacity: 0.7 }]}
             >
@@ -327,7 +327,7 @@ function ProgramCard({
               <View style={{ flex: 1 }}>
                 <Text style={[styles.rowTitle, item.done && styles.rowDone]}>{item.exercise.name}</Text>
                 <Text style={styles.muted}>
-                  {item.sets} sets × {item.reps} reps{item.attempted && !item.done ? ' · started' : ''}
+                  {item.sets === 1 ? `${item.reps} reps` : `${item.sets} sets × ${item.reps} reps`}{item.attempted && !item.done ? ' · started' : ''}
                   {doctors.length > 1 ? ` · ${item.therapist_name}` : ''}
                 </Text>
               </View>

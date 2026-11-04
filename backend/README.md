@@ -67,3 +67,29 @@ Run in the Supabase SQL editor, in order:
 
 `date` is always the **phone's** local date, so "today" follows the patient's time zone. Scheduling
 rules live in `app/schedule.py` (pure functions, tested in `tests/test_schedule.py` against 3 schedules).
+
+
+### Programs & roster (Flow 5/6 — portal program editor, `app/routes/care.py`)
+
+No new migration: uses `plans` (0001 + 0006) and `exercise_logs`. Therapist token required; the patient must be on
+the therapist's caseload (active `care_links`), otherwise 404.
+
+| Endpoint | What |
+|---|---|
+| `GET /therapist/patients?date=YYYY-MM-DD` | Roster: per patient, my program summary, 30-day adherence, last session, status `on-track \| missed \| none` |
+| `GET /therapist/patients/<id>/program?date=…` | Patient detail: my exercises, other clinicians' exercises (read-only), stats, today's due list, last 15 sessions |
+| `PUT /therapist/patients/<id>/program` | Save my program: `{"start_date": "YYYY-MM-DD", "items": [{"exercise_id", "sets", "reps", "days_of_week"}]}` |
+
+Saving rules: non-empty; each exercise once; sets 1–10, reps 1–50; ≥1 day each (0 = Sunday). Kept exercises are
+updated in place (history stays attached), removed ones get `end_date = start_date − 1` (kept, no longer due), new
+ones start on `start_date`. Other therapists' plans are never changed. The patient gets a best-effort push.
+
+### Demo accounts (`scripts/demo_setup.py`)
+
+Creates (or reuses) an already-confirmed doctor + patient, links them, and assigns a short 4-exercise program
+(2 tilt + 2 rotation, every day). `--no-program` links only, so you can assign live in the portal.
+
+```bash
+export SUPABASE_URL=https://<ref>.supabase.co SUPABASE_SECRET_KEY=sb_secret_...
+python scripts/demo_setup.py --doctor dr.lee@example.com --patient jordan@example.com --password demo-pass-123
+```

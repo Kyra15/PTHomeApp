@@ -8,6 +8,7 @@ import { InvitationsPage } from './pages/InvitationsPage';
 import { InvitePage } from './pages/InvitePage';
 import { ComingSoonPage } from './pages/ComingSoonPage';
 import { ExerciseLibraryPage } from './pages/ExerciseLibraryPage';
+import { PatientDetailPage } from './pages/PatientDetailPage';
 import './App.css';
 
 export default function App() {
@@ -38,7 +39,15 @@ export default function App() {
             path="/patients"
             element={
               <RequireAuth>
-                <ComingSoonPage title="Patients" />
+                <RosterPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/patients/:patientId"
+            element={
+              <RequireAuth>
+                <PatientDetailPage />
               </RequireAuth>
             }
           />
