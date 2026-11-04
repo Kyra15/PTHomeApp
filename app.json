@@ -10,7 +10,8 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSMotionUsageDescription": "Home PT Coach uses the motion sensors to see how far you move your arm during each exercise, so it can tell you when you've done it correctly."
+        "NSMotionUsageDescription": "Home PT Coach uses the motion sensors to see how far you move your arm during each exercise, so it can tell you when you've done it correctly.",
+        "NSLocalNetworkUsageDescription": "Home PT Coach connects to your computer on this Wi-Fi network while you're developing and testing the app."
       },
       "bundleIdentifier": "com.anonymous.homeptcoach"
     },
@@ -27,6 +28,9 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": ["expo-notifications"]
+    "plugins": [
+      "./plugins/withXcodeNodeBinary",
+      "./plugins/withSceneLifecycle"
+    ]
   }
 }

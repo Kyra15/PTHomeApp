@@ -6,6 +6,7 @@ import { AuthStackParamList } from '../navigation/types';
 import { useAuth } from '../auth/AuthContext';
 import { BigButton } from '../components/BigButton';
 import { BigInput } from '../components/BigInput';
+import { CheckConnectionLink } from '../components/CheckConnectionLink';
 import { colors, spacing, type } from '../theme/theme';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'SignIn'>;
@@ -63,6 +64,7 @@ export function SignInScreen({ navigation }: Props) {
             onPress={() => navigation.replace('SignUp')}
             style={{ marginTop: spacing.md }}
           />
+          <CheckConnectionLink />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

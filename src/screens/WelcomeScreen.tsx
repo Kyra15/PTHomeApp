@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '../navigation/types';
 import { BigButton } from '../components/BigButton';
+import { CheckConnectionLink } from '../components/CheckConnectionLink';
 import { colors, spacing, type } from '../theme/theme';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Welcome'>;
@@ -20,6 +21,7 @@ export function WelcomeScreen({ navigation }: Props) {
       <View style={styles.buttons}>
         <BigButton label="Sign In" onPress={() => navigation.navigate('SignIn')} />
         <BigButton label="Create Account" variant="outline" onPress={() => navigation.navigate('SignUp')} />
+        <CheckConnectionLink />
       </View>
     </SafeAreaView>
   );

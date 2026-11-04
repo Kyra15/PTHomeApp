@@ -1,9 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { AppState } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
-import { supabase, supabaseConfigured } from '../lib/supabase';
+import { supabase, supabaseConfigProblem, supabaseConfigured, supabaseHost } from '../lib/supabase';
 
-type Result = { error: string | null };
+/** `notice` is a non-error message to show (e.g. "check your email"), never set together with `error`. */
+type Result = { error: string | null; notice?: string };
 
 interface AuthValue {
   session: Session | null;
@@ -16,7 +17,8 @@ interface AuthValue {
 
 const AuthContext = createContext<AuthValue | null>(null);
 
-const OFFLINE = "We couldn't reach the internet. Check your connection and try again.";
+// Name the server: "no internet" was misleading when the phone was online but the configured address was wrong.
+const OFFLINE = `We couldn't reach the sign-in server (${supabaseHost || 'not set'}). Tap "Check connection" below to see why.`;
 
 function friendlyError(message: string): string {
   const m = message.toLowerCase();
@@ -52,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = useCallback(async (email: string, password: string): Promise<Result> => {
-    if (!supabaseConfigured) return { error: 'The app is not connected to the server yet.' };
+    if (!supabaseConfigured) return { error: supabaseConfigProblem ?? 'The app is not connected to the server yet.' };
     try {
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (!error) return { error: null };
@@ -71,7 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = useCallback(
     async (firstName: string, lastName: string, email: string, password: string): Promise<Result> => {
-      if (!supabaseConfigured) return { error: 'The app is not connected to the server yet.' };
+      if (!supabaseConfigured) return { error: supabaseConfigProblem ?? 'The app is not connected to the server yet.' };
       try {
         const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
@@ -87,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) return { error: friendlyError(error.message) };
         if (!data.session) {
           // Email confirmation is switched on in Supabase: no session until they confirm.
-          return { error: 'Almost done! Check your email and tap the link to confirm, then sign in.' };
+          return { error: null, notice: 'Almost done! Check your email and tap the link to confirm, then sign in.' };
         }
         return { error: null };
       } catch {

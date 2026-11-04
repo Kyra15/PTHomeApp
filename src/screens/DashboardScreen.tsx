@@ -6,8 +6,9 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useAuth } from '../auth/AuthContext';
 import { BigButton } from '../components/BigButton';
+import { CheckConnectionLink } from '../components/CheckConnectionLink';
 import { supabase } from '../lib/supabase';
-import { getMyInvitations, getToday, sendTestPush } from '../lib/api';
+import { getMyInvitations, getToday } from '../lib/api';
 import type { TodayItem, TodayResponse, WeekDay } from '../lib/api';
 import { colors, radii, spacing, type } from '../theme/theme';
 
@@ -101,16 +102,6 @@ export function DashboardScreen({ navigation }: Props) {
   const openProfile = () =>
     Alert.alert(firstName ?? 'Your account', session?.user.email ?? undefined, [
       { text: 'Connect with a doctor', onPress: () => navigation.navigate('Connect') },
-      {
-        text: 'Send a test notification',
-        onPress: async () => {
-          const r = await sendTestPush();
-          Alert.alert(
-            r.data?.sent ? 'Test sent' : 'Not sent',
-            r.data?.sent ? `Sent to ${r.data.devices} device${r.data.devices === 1 ? '' : 's'}. It should arrive in a few seconds.` : r.error ?? 'Please try again.',
-          );
-        },
-      },
       { text: 'Check motion sensors', onPress: () => navigation.navigate('SensorCheck') },
       { text: 'Sign out', style: 'destructive', onPress: signOut },
       { text: 'Close', style: 'cancel' },
@@ -164,6 +155,7 @@ export function DashboardScreen({ navigation }: Props) {
             <Text style={styles.muted}>{error}</Text>
             <View style={{ height: spacing.md }} />
             <BigButton label="Try Again" onPress={load} />
+            <CheckConnectionLink />
           </View>
         ) : today ? (
           <>
@@ -317,7 +309,7 @@ function ProgramCard({
             <Pressable
               key={item.plan_id}
               accessibilityRole="button"
-              accessibilityLabel={`${item.exercise.name}, ${item.sets} sets of ${item.reps}. ${item.done ? 'Done.' : 'Not done yet.'}`}
+              accessibilityLabel={`${item.exercise.name}, ${item.sets} ${item.sets === 1 ? 'set' : 'sets'} of ${item.reps}. ${item.done ? 'Done.' : 'Not done yet.'}`}
               onPress={() => onStart(item)}
               style={({ pressed }) => [styles.exerciseRow, pressed && { opacity: 0.7 }]}
             >
@@ -327,7 +319,7 @@ function ProgramCard({
               <View style={{ flex: 1 }}>
                 <Text style={[styles.rowTitle, item.done && styles.rowDone]}>{item.exercise.name}</Text>
                 <Text style={styles.muted}>
-                  {item.sets} sets × {item.reps} reps{item.attempted && !item.done ? ' · started' : ''}
+                  {item.sets === 1 ? `${item.reps} reps` : `${item.sets} sets × ${item.reps} reps`}{item.attempted && !item.done ? ' · started' : ''}
                   {doctors.length > 1 ? ` · ${item.therapist_name}` : ''}
                 </Text>
               </View>

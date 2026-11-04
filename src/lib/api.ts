@@ -25,6 +25,15 @@ async function authed<T>(path: string, init: RequestInit = {}): Promise<ApiResul
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(init.headers ?? {}) },
     });
     const body = await resp.json().catch(() => ({}));
+    if (resp.status === 401) {
+      // The backend couldn't verify the sign-in: almost always the backend (e.g. on Render) is set to a different
+      // Supabase project than the app, or its SUPABASE_URL / SUPABASE_SECRET_KEY aren't set.
+      return {
+        data: null,
+        error: "The app server didn't accept your sign-in. Its Supabase settings probably don't match the app's — tap \"Check connection\" below.",
+        code: 'unauthorized',
+      };
+    }
     if (!resp.ok) {
       return {
         data: null,
@@ -52,9 +61,6 @@ export const acceptByCode = (code: string) =>
     method: 'POST',
     body: JSON.stringify({ code }),
   });
-
-export const registerPushToken = (token: string, platform: string) =>
-  authed<{ ok: boolean }>('/patient/push-token', { method: 'POST', body: JSON.stringify({ token, platform }) });
 
 // ---------- Today / schedule / sessions (tasks 1.7, 2.1–2.4) ----------
 
@@ -130,6 +136,3 @@ export const saveSession = (body: SessionUpload) =>
     method: 'POST',
     body: JSON.stringify(body),
   });
-
-/** Task 1.7: ask the backend to send a test push to this account's registered phones. */
-export const sendTestPush = () => authed<{ sent: boolean; devices: number }>('/patient/push-test', { method: 'POST' });
