@@ -1,24 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Search, Plus, Users, TrendingUp, Clock, ArrowRightLeft } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Search, Plus, Users, TrendingUp, Clock, ArrowRightLeft, ClipboardList } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
-import { supabase } from '../lib/supabase';
 import { AppShell } from '../components/AppShell';
 import { StatCard } from '../components/StatCard';
 import { StatusPill } from '../components/StatusPill';
 import { Avatar } from '../components/Avatar';
 import { InviteModal } from '../components/InviteModal';
 import { TransferModal } from '../components/TransferModal';
-import { listInvitations } from '../lib/api';
+import { formatDays, formatShortDate, listInvitations, listPatients } from '../lib/api';
+import type { RosterPatient } from '../lib/api';
 
-interface Patient {
-  id: string;
-  firstName: string | null;
-  lastName: string | null;
-  fullName: string | null;
-  email: string | null;
-  injuryArea: string | null;
-}
+type Patient = RosterPatient;
 
 const TODAY = new Date().toLocaleDateString(undefined, {
   weekday: 'long',
@@ -27,14 +20,9 @@ const TODAY = new Date().toLocaleDateString(undefined, {
 });
 
 /**
- * Patients on the signed-in therapist's caseload: active rows in care_links (a patient can have
- * several therapists, so this replaced users.assigned_therapist_id in migration 0005).
- * Row Level Security (`care_links_select_therapist`, `is_therapist_of`) already restricts this to
- * only that therapist's patients — the explicit filters below are belt-and-suspenders.
- *
- * There's no enrollment, program-assignment, or session flow yet (later milestones), so program,
- * adherence, and last-session are honest placeholders rather than invented numbers — matching
- * the mockup's layout without pretending data exists that the app doesn't track yet.
+ * Patients on the signed-in therapist's caseload (active care_links), from GET /therapist/patients:
+ * program summary, 30-day adherence, last session and a status flag (on track / missed sessions /
+ * not started). Click a patient to open their detail page and edit their exercise program (Flow 6).
  */
 export function RosterPage() {
   const { session } = useAuth();
@@ -51,46 +39,14 @@ export function RosterPage() {
     let cancelled = false;
     async function load() {
       if (!session) return;
-      const { data: links, error: usersError } = await supabase
-        .from('care_links')
-        .select('patient:users!care_links_patient_id_fkey(id, first_name, last_name, full_name, email)')
-        .eq('therapist_id', session.user.id)
-        .eq('status', 'active');
-
+      const { data, error: e } = await listPatients();
       if (cancelled) return;
-      if (usersError) {
-        setError("Couldn't load your patients. Please try again.");
+      if (e || !data) {
+        setError(e ?? "Couldn't load your patients. Please try again.");
         return;
       }
       setError(null);
-
-      type Row = { id: string; first_name: string | null; last_name: string | null; full_name: string | null; email: string | null };
-      const users: Row[] = ((links ?? []) as unknown as { patient: Row | null }[])
-        .map((l) => l.patient)
-        .filter((u): u is Row => Boolean(u))
-        .sort((a, b) => (a.first_name ?? a.full_name ?? '').localeCompare(b.first_name ?? b.full_name ?? ''));
-
-      const ids = users.map((u) => u.id);
-      let injuryByUserId = new Map<string, string | null>();
-      if (ids.length > 0) {
-        const { data: profiles } = await supabase
-          .from('health_profiles')
-          .select('user_id, injury_area')
-          .in('user_id', ids);
-        injuryByUserId = new Map((profiles ?? []).map((p) => [p.user_id, p.injury_area]));
-      }
-
-      if (cancelled) return;
-      setPatients(
-        users.map((u) => ({
-          id: u.id,
-          firstName: u.first_name,
-          lastName: u.last_name,
-          fullName: u.full_name,
-          email: u.email,
-          injuryArea: injuryByUserId.get(u.id) ?? null,
-        })),
-      );
+      setPatients(data.patients);
     }
     load();
     listInvitations().then(({ data }) => {
@@ -101,10 +57,17 @@ export function RosterPage() {
     };
   }, [session, reloadKey]);
 
+  const navigate = useNavigate();
+
   function displayName(p: Patient): string {
-    if (p.firstName || p.lastName) return [p.firstName, p.lastName].filter(Boolean).join(' ');
-    return p.fullName || 'Unnamed patient';
+    if (p.first_name || p.last_name) return [p.first_name, p.last_name].filter(Boolean).join(' ');
+    return p.full_name || p.email || 'Unnamed patient';
   }
+
+  const avgAdherence = useMemo(() => {
+    const vals = (patients ?? []).map((p) => p.adherence_pct).filter((v): v is number => v !== null);
+    return vals.length ? `${Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)}%` : '—';
+  }, [patients]);
 
   const filtered = useMemo(() => {
     if (!patients) return null;
@@ -143,7 +106,7 @@ export function RosterPage() {
 
       <div className="stat-grid">
         <StatCard icon={Users} value={patients ? String(patients.length) : '—'} label="Active patients" />
-        <StatCard icon={TrendingUp} value="—" label="Avg. adherence" tone="accent" />
+        <StatCard icon={TrendingUp} value={avgAdherence} label="Avg. adherence (30 days)" tone="accent" />
         <Link to="/invitations" className="stat-link">
           <StatCard
             icon={Clock}
@@ -192,24 +155,45 @@ export function RosterPage() {
               {filtered.map((p) => {
                 const name = displayName(p);
                 return (
-                  <tr key={p.id}>
+                  <tr key={p.id} className="patient-row-link" onClick={() => navigate(`/patients/${p.id}`)}>
                     <td>
                       <div className="patient-name-cell">
                         <Avatar name={name} />
                         <div>
-                          <span className="name">{name}</span>
+                          <Link to={`/patients/${p.id}`} className="patient-link" onClick={(e) => e.stopPropagation()}>
+                            <span className="name">{name}</span>
+                          </Link>
                           {p.email ? <div className="cell-sub">{p.email}</div> : null}
                         </div>
                       </div>
                     </td>
-                    <td>{p.injuryArea ? `${p.injuryArea} · no program yet` : 'No program assigned'}</td>
-                    <td>—</td>
-                    <td>Never</td>
-                    <td>
-                      <StatusPill status="none" />
+                    <td className="program-cell">
+                      {p.program.exercise_count === 0 ? (
+                        <span style={{ color: 'var(--text-secondary)' }}>No program assigned</span>
+                      ) : (
+                        <>
+                          <div className="program-cell-main">
+                            {p.program.exercise_count} exercise{p.program.exercise_count === 1 ? '' : 's'} ·{' '}
+                            {formatDays(p.program.days_of_week)}
+                          </div>
+                          <div className="program-cell-sub">
+                            {p.program.body_areas.slice(0, 2).join(', ')}
+                            {p.program.body_areas.length > 2 ? ` +${p.program.body_areas.length - 2} more` : ''}
+                          </div>
+                        </>
+                      )}
                     </td>
+                    <td>{p.adherence_pct === null ? '—' : `${p.adherence_pct}%`}</td>
+                    <td>{formatShortDate(p.last_session_date)}</td>
                     <td>
+                      <StatusPill status={p.status} />
+                    </td>
+                    <td onClick={(e) => e.stopPropagation()}>
                       <div className="row-actions">
+                        <Link to={`/patients/${p.id}`} className="btn-secondary btn-small">
+                          <ClipboardList size={14} />
+                          {p.program.exercise_count === 0 ? 'Assign program' : 'Edit program'}
+                        </Link>
                         <button className="btn-secondary btn-small" onClick={() => setTransferring(p)}>
                           <ArrowRightLeft size={14} />
                           Transfer

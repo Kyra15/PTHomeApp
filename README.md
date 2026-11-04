@@ -37,11 +37,11 @@ is explicitly excluded from this first release.
 
 | Piece | Choice | Status |
 |---|---|---|
-| Patient app | React Native (Expo), iOS-only for the MVP | Prototype exists in the repo root |
-| Backend | Flask (Python), deployed on Render | Skeleton with `/health` built |
+| Patient app | React Native (Expo), iOS-only for the MVP | Sign-in, doctor invites, today's program, live motion tracking, session saving |
+| Backend | Flask (Python), deployed on Render | Accounts, invitations/linking, programs, schedule, sessions |
 | Database & auth | Supabase (Postgres + Row Level Security) | Core schema and RLS policies written |
-| Admin portal | Web app (planned: React) | Placeholder folder only |
-| Push notifications | Apple Push Notification service (APNs) | Not started |
+| Admin portal | React + Vite web app (`admin-web/`) | Sign-up/in, roster, invitations, transfers, exercise library, program editor |
+| Push notifications | Apple Push Notification service (APNs) | Removed from the app for now (needs a paid Apple developer account); invitations show in-app |
 
 Because the app handles personal health information, backend and hosting choices will need
 HIPAA-aware handling. That has not been designed yet.
@@ -64,6 +64,7 @@ npm install
 cp .env.example .env.local   # then fill in your Supabase URL and publishable key
 npx expo start --clear       # dev server (restart it after changing .env.local)
 npx expo run:ios             # build and launch in the iOS simulator (Mac + Xcode only)
+npm run ios:clean            # fresh native build on a plugged-in iPhone (fixes most Xcode build errors)
 ```
 
 The app uses the Supabase **publishable** key (`sb_publishable_...`), which is safe to ship in the app.
@@ -82,6 +83,7 @@ cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env      # fill in SUPABASE_URL and SUPABASE_SECRET_KEY
+set -a; source .env; set +a
 flask --app wsgi run      # http://127.0.0.1:5000/health
 pytest
 ```
@@ -91,9 +93,19 @@ never commit it or put it in the app.
 
 ### Database (Supabase)
 
-Run each file in `backend/supabase/migrations/` in order (`0001`, `0002`, then `0003`) in the Supabase SQL Editor, then run
+Run each file in `backend/supabase/migrations/` in order (`0001` through `0007`) in the Supabase SQL Editor, then run
 `backend/supabase/tests_rls.sql` to check the access rules. Every row it returns should show
 `passed = true`.
+
+## Demo
+
+Build failing in Xcode ("PhaseScriptExecution failed")? See the troubleshooting steps in
+[`docs/demo-checklist.md`](./docs/demo-checklist.md#if-the-build-fails-with-command-phasescriptexecution-failed-with-a-nonzero-exit-code).
+
+
+[`docs/demo-checklist.md`](./docs/demo-checklist.md) walks through the core demo — create a doctor and a patient
+account, link them, assign a varied exercise program, and complete it on the iPhone — plus a pre-demo checklist
+and a backup script (`backend/scripts/demo_setup.py`) that creates ready-to-go demo accounts.
 
 ## Repository Structure
 
@@ -107,7 +119,7 @@ Run each file in `backend/supabase/migrations/` in order (`0001`, `0002`, then `
 │   ├── supabase/           #   SQL migrations and RLS tests
 │   ├── tests/              #   pytest tests
 │   └── render.yaml         #   Render deployment config
-├── admin-web/              # admin portal (placeholder)
+├── admin-web/              # clinician web portal (React + Vite)
 ├── todo.md
 └── docs/
     ├── mvp.md              # MVP scope, feature list, and what's excluded

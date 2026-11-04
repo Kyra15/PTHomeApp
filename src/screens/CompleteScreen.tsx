@@ -96,7 +96,7 @@ export function CompleteScreen({ route, navigation }: Props) {
           <Stat label="Sets" value={`${summary.setsCompleted}/${summary.targetSets}`} />
           <Stat label="Time" value={formatDuration(summary.durationSeconds)} />
           <Stat
-            label={exercise?.sensorMode === 'rotation' ? 'Circles' : 'Avg range'}
+            label={exercise?.sensorMode === 'rotation' ? (exercise.diagram.startsWith('circle') ? 'Circles' : 'Turns') : 'Avg range'}
             value={exercise?.sensorMode === 'rotation' ? String(summary.repsCompleted) : summary.avgRomDeg !== null ? `${summary.avgRomDeg}°` : '—'}
           />
         </View>

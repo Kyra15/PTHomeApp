@@ -6,9 +6,11 @@ interface Props {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  /** Wider dialog (e.g. the program editor's exercise picker). */
+  wide?: boolean;
 }
 
-export function Modal({ title, onClose, children }: Props) {
+export function Modal({ title, onClose, children, wide = false }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -17,7 +19,7 @@ export function Modal({ title, onClose, children }: Props) {
 
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
-      <div className="modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(e) => e.stopPropagation()}>
+      <div className={`modal${wide ? ' modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{title}</h2>
           <button className="icon-btn" onClick={onClose} aria-label="Close">

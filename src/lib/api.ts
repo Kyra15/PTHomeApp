@@ -53,9 +53,6 @@ export const acceptByCode = (code: string) =>
     body: JSON.stringify({ code }),
   });
 
-export const registerPushToken = (token: string, platform: string) =>
-  authed<{ ok: boolean }>('/patient/push-token', { method: 'POST', body: JSON.stringify({ token, platform }) });
-
 // ---------- Today / schedule / sessions (tasks 1.7, 2.1–2.4) ----------
 
 export interface LibraryExercise {
@@ -130,6 +127,3 @@ export const saveSession = (body: SessionUpload) =>
     method: 'POST',
     body: JSON.stringify(body),
   });
-
-/** Task 1.7: ask the backend to send a test push to this account's registered phones. */
-export const sendTestPush = () => authed<{ sent: boolean; devices: number }>('/patient/push-test', { method: 'POST' });

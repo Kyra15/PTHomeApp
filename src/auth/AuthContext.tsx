@@ -3,7 +3,8 @@ import { AppState } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, supabaseConfigured } from '../lib/supabase';
 
-type Result = { error: string | null };
+/** `notice` is a non-error message to show (e.g. "check your email"), never set together with `error`. */
+type Result = { error: string | null; notice?: string };
 
 interface AuthValue {
   session: Session | null;
@@ -87,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (error) return { error: friendlyError(error.message) };
         if (!data.session) {
           // Email confirmation is switched on in Supabase: no session until they confirm.
-          return { error: 'Almost done! Check your email and tap the link to confirm, then sign in.' };
+          return { error: null, notice: 'Almost done! Check your email and tap the link to confirm, then sign in.' };
         }
         return { error: null };
       } catch {
