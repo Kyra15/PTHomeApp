@@ -3,6 +3,137 @@
 The core demo: create a doctor account and a patient account, link them, have the doctor assign a few varied
 exercises, and show the patient doing them on the iPhone with live motion tracking. About 5 minutes.
 
+## Start everything (terminal commands)
+
+You need three things running: the **backend** (Flask API), the **portal** (doctor website) and the **iPhone app**.
+Commands are for macOS (the iPhone build needs a Mac with Xcode). Use one terminal window per app and leave each
+one running. Start from the repo folder:
+
+```bash
+cd ~/path/to/PTHomeApp          # wherever you cloned it
+git checkout demo-ready         # the branch with the patch applied
+```
+
+### Find your Mac's local IP (only if the backend runs on your Mac)
+
+The iPhone can't reach `127.0.0.1` (that means the phone itself), so it needs your Mac's address on the Wi-Fi.
+Phone and Mac must be on the **same Wi-Fi**.
+
+```bash
+ipconfig getifaddr en0          # prints something like 192.168.1.20 — use it below in place of <MAC_IP>
+```
+
+### Terminal 1 — backend (Flask API)
+
+**Option A: use Render (no terminal needed).** Push the `demo-ready` branch and deploy it (Render dashboard →
+your `kinetic-backend` service → *Manual Deploy* → *Deploy latest commit*, after pointing the service at the
+branch, or merge to main). Check it's up:
+
+```bash
+curl https://<your-backend>.onrender.com/health      # want: {"status":"ok","supabase":"connected"}
+```
+
+Then use `https://<your-backend>.onrender.com` as the backend URL in Terminals 2 and 3.
+
+**Option B: run it on your Mac.**
+
+First time only:
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+open -e .env        # fill in SUPABASE_URL and SUPABASE_SECRET_KEY (sb_secret_...), save, close
+```
+
+Every time:
+
+```bash
+cd backend
+source .venv/bin/activate
+set -a; source .env; set +a                      # load the variables into this terminal
+pytest -q                                         # optional sanity check: 51 passed
+flask --app wsgi run --host 0.0.0.0 --port 5000   # 0.0.0.0 so the iPhone can reach it
+```
+
+Check it from a second terminal: `curl http://127.0.0.1:5000/health`. The backend URL for Terminals 2 and 3 is
+`http://<MAC_IP>:5000`. (If you open the portal at an address other than `http://localhost:5173`, add it to
+`CORS_ORIGINS` in `backend/.env`, comma-separated, and restart Flask.)
+
+### Terminal 2 — doctor portal (website)
+
+First time only:
+
+```bash
+cd admin-web
+npm install
+cp .env.example .env.local
+open -e .env.local
+#   VITE_SUPABASE_URL=https://<ref>.supabase.co
+#   VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+#   VITE_API_BASE_URL=http://127.0.0.1:5000      (or your Render URL)
+```
+
+Every time:
+
+```bash
+cd admin-web
+npm run dev          # then open http://localhost:5173 in your browser
+```
+
+(After editing `.env.local`, stop with Ctrl+C and run `npm run dev` again.)
+
+### Terminal 3 — patient iPhone app
+
+First time only (from the repo root, not a subfolder):
+
+```bash
+npm install
+cp .env.example .env.local
+open -e .env.local
+#   EXPO_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co
+#   EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+#   EXPO_PUBLIC_API_BASE_URL=http://<MAC_IP>:5000   (or your Render URL — never 127.0.0.1)
+```
+
+Plug the iPhone into the Mac with a cable, unlock it, and tap *Trust* if asked. Then build and install the app
+on the phone (first time, or after changing native settings — takes a few minutes):
+
+```bash
+npx expo run:ios --device       # pick your iPhone from the list
+```
+
+If Xcode complains about signing: open `ios/*.xcworkspace` in Xcode → the app target → *Signing & Capabilities* →
+choose your Apple ID team, then run the command again. On the phone, if it says "Untrusted Developer": Settings →
+General → VPN & Device Management → trust your Apple ID.
+
+Every time after that (app already installed on the phone):
+
+```bash
+npx expo start --clear     # then open the Kinetic app on the iPhone (same Wi-Fi as the Mac)
+```
+
+Restart this command (Ctrl+C, run again) whenever you change `.env.local` — `--clear` makes sure the new values
+are picked up.
+
+### Optional — ready-made demo accounts
+
+In a terminal with the backend's virtualenv and `.env` loaded (see Terminal 1, Option B):
+
+```bash
+cd backend
+source .venv/bin/activate
+set -a; source .env; set +a
+python scripts/demo_setup.py --doctor dr.lee@example.com --patient jordan@example.com --password demo-pass-123
+# add --no-program to link the accounts but assign the exercises live in the portal
+```
+
+### Shutting down
+
+Press Ctrl+C in each terminal. Next time, run only the **Every time** commands.
+
 ## The day before
 
 - [ ] **Database:** migrations `0001`–`0007` have been run in the Supabase SQL Editor (the program editor needs no
