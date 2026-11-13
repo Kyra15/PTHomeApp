@@ -70,9 +70,13 @@ export interface LibraryExercise {
   name: string;
   body_area: string;
   description: string | null;
+  /** 'manual' = a custom activity from the care team that the patient just checks off (no motion tracking). */
+  sensor_mode: 'tilt' | 'rotation' | 'manual';
   est_minutes: number | null;
   accent_color: string | null;
 }
+
+export const isManual = (item: { exercise: Pick<LibraryExercise, 'sensor_mode'> }) => item.exercise.sensor_mode === 'manual';
 
 export interface TodayItem {
   plan_id: string;
@@ -130,6 +134,13 @@ export interface SessionUpload {
   completed: boolean;
   summary: Record<string, unknown>;
 }
+
+/** Tick (done = true) or untick a manual activity for today. */
+export const checkManualActivity = (planId: string, done: boolean) =>
+  authed<{ plan_id: string; local_date: string; done: boolean }>(`/patient/manual/${planId}`, {
+    method: 'POST',
+    body: JSON.stringify({ local_date: localDateString(), done }),
+  });
 
 export const saveSession = (body: SessionUpload) =>
   authed<{ session: { id: string; local_date: string; completed: boolean } }>('/patient/sessions', {

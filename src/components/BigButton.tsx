@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import type { LucideIcon } from 'lucide-react-native';
 import { colors, minTouchTarget, radii, spacing, type } from '../theme/theme';
 
 type Variant = 'primary' | 'secondary' | 'outline';
@@ -15,6 +16,10 @@ interface Props {
   subLabel?: string;
   /** Override the computed text color — useful for outline buttons on a colored background. */
   textColor?: string;
+  /** Lucide icon shown before the label (decorative — the label is still read by VoiceOver). */
+  icon?: LucideIcon;
+  /** Fill the icon's shape too (good for solid Play / Pause glyphs). */
+  iconFilled?: boolean;
 }
 
 export function BigButton({
@@ -26,6 +31,8 @@ export function BigButton({
   style,
   subLabel,
   textColor: textColorOverride,
+  icon: Icon,
+  iconFilled = false,
 }: Props) {
   const bg = disabled
     ? colors.disabled
@@ -53,7 +60,10 @@ export function BigButton({
       ]}
     >
       <View>
-        <Text style={[styles.label, { color: textColor }]}>{label}</Text>
+        <View style={styles.labelRow}>
+          {Icon ? <Icon size={24} color={textColor} strokeWidth={2.5} fill={iconFilled ? textColor : 'none'} accessible={false} /> : null}
+          <Text style={[styles.label, { color: textColor }]}>{label}</Text>
+        </View>
         {subLabel ? <Text style={[styles.subLabel, { color: textColor }]}>{subLabel}</Text> : null}
       </View>
     </Pressable>
@@ -73,6 +83,7 @@ const styles = StyleSheet.create({
   outlineBorder: {
     borderWidth: 3,
   },
+  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
   label: {
     ...type.button,
     textAlign: 'center',

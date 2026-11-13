@@ -10,6 +10,8 @@ Patient (iPhone app):
                                       the PHONE's local date; the server falls back to its own UTC date.
   GET  /patient/schedule?date=…       just the exercises due that day (task 2.2's contract)
   POST /patient/sessions              save a finished (or ended-early) session to exercise_logs
+  POST /patient/manual/<plan_id>      check off (or un-check) a manual activity for a day
+      {"local_date": "YYYY-MM-DD", "done": true|false}
   POST /patient/push-test             task 1.7: send a test push to my registered devices
 """
 from datetime import date, datetime, timedelta, timezone
@@ -25,8 +27,9 @@ bp = Blueprint("program", __name__)
 EXERCISE_COLUMNS = (
     "id, slug, name, body_area, description, instructions, positioning_tip, sensor_mode, diagram, "
     "default_sets, default_reps, target_angle_deg, return_angle_deg, target_rotation_deg, est_minutes, "
-    "difficulty, equipment, tags, accent_color, active"
+    "difficulty, equipment, tags, accent_color, active, created_by"
 )
+MANUAL = "manual"  # sensor_mode of a clinician-written activity the patient just checks off
 MAX_SESSION_SECONDS = 4 * 60 * 60
 
 
@@ -41,11 +44,17 @@ def _local_date(raw) -> date | None:
 
 
 def _exercise_public(ex: dict) -> dict:
-    return {k: ex.get(k) for k in [c.strip() for c in EXERCISE_COLUMNS.split(",")] if k != "active"}
+    return {k: ex.get(k) for k in [c.strip() for c in EXERCISE_COLUMNS.split(",")] if k not in ("active", "created_by")}
+
+
+def is_manual(ex: dict | None) -> bool:
+    return bool(ex) and ex.get("sensor_mode") == MANUAL
 
 
 def _search_library(client, body_area: str | None, q: str | None) -> list[dict]:
     rows = client.table("exercises").select(EXERCISE_COLUMNS).eq("active", True).execute().data or []
+    # Manual activities a clinician wrote for one patient are never part of the shared library.
+    rows = [r for r in rows if not r.get("created_by") and not is_manual(r)]
     if body_area:
         rows = [r for r in rows if (r.get("body_area") or "").lower() == body_area.strip().lower()]
     if q:
@@ -236,6 +245,47 @@ def save_session():
 
     saved = g.client.table("exercise_logs").insert(row).execute().data[0]
     return jsonify(session={"id": saved["id"], "local_date": row["local_date"], "completed": row["completed"]}), 201
+
+
+@bp.post("/patient/manual/<plan_id>")
+@require_role("patient")
+def check_manual(plan_id):
+    """Tick (done=true) or untick (done=false) a manual activity for the phone's local day."""
+    body = request.get_json(silent=True) or {}
+    uid = g.profile["id"]
+    day = _local_date(body.get("local_date"))
+    if day is None:
+        return jsonify(error="local_date must be YYYY-MM-DD"), 400
+    done = body.get("done", True)
+    if not isinstance(done, bool):
+        return jsonify(error="done must be true or false"), 400
+
+    rows = g.client.table("plans").select("id, patient_id, exercise_id").eq("id", plan_id).limit(1).execute().data
+    if not rows or rows[0]["patient_id"] != uid:
+        return jsonify(error="That activity isn't part of your program."), 404
+    plan = rows[0]
+    ex = (g.client.table("exercises").select("id, sensor_mode").eq("id", plan["exercise_id"]).limit(1).execute().data or [None])[0]
+    if not is_manual(ex):
+        return jsonify(error="This exercise is tracked with motion sensors. Start it from Today's Program."), 400
+
+    existing = (
+        g.client.table("exercise_logs").select("id")
+        .eq("patient_id", uid).eq("plan_id", plan_id).eq("local_date", day.isoformat())
+        .execute().data
+        or []
+    )
+    if done and not existing:
+        g.client.table("exercise_logs").insert({
+            "patient_id": uid,
+            "plan_id": plan_id,
+            "exercise_id": plan["exercise_id"],
+            "local_date": day.isoformat(),
+            "completed": True,
+            "summary": {"manual": True},
+        }).execute()
+    elif not done and existing:
+        g.client.table("exercise_logs").delete().in_("id", [r["id"] for r in existing]).execute()
+    return jsonify(plan_id=plan_id, local_date=day.isoformat(), done=done)
 
 
 # ---------- task 1.7: test push ----------

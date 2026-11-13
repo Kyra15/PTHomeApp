@@ -153,7 +153,8 @@ export interface ProgramExercise {
   name: string;
   body_area: string;
   description: string | null;
-  sensor_mode: 'tilt' | 'rotation';
+  /** 'manual' = a custom activity this clinician wrote; the patient just checks it off. */
+  sensor_mode: 'tilt' | 'rotation' | 'manual';
   default_sets: number;
   default_reps: number;
   est_minutes: number | null;
@@ -183,6 +184,8 @@ export interface RecentSession {
   avg_rom_degrees: number | null;
   duration_seconds: number | null;
   completed: boolean;
+  /** A manual activity the patient checked off (no reps / range / time). */
+  manual: boolean;
 }
 
 export interface PatientProgram {
@@ -202,11 +205,18 @@ export interface PatientProgram {
 }
 
 export interface ProgramItemInput {
-  exercise_id: string;
+  /** Library exercise, or an existing manual activity being kept/edited. Omit for a new manual activity. */
+  exercise_id?: string;
   sets: number;
   reps: number;
   days_of_week: number[];
+  /** Set for a manual (check-off) activity. */
+  manual?: { name: string; instructions: string };
 }
+
+export const isManualExercise = (ex: { sensor_mode: string } | null | undefined) => ex?.sensor_mode === 'manual';
+export const MANUAL_NAME_MAX = 80;
+export const MANUAL_INSTRUCTIONS_MAX = 500;
 
 export const listPatients = () =>
   authed<{ date: string; patients: RosterPatient[] }>(`/therapist/patients?date=${localDateString()}`);

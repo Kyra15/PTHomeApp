@@ -2,11 +2,12 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, Path } from 'react-native-svg';
+import { Check } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { getExerciseById } from '../data/exercises';
 import { BigButton } from '../components/BigButton';
-import { getToday, localDateString, saveSession } from '../lib/api';
+import { getToday, isManual, localDateString, saveSession } from '../lib/api';
 import type { TodayItem } from '../lib/api';
 import { colors, radii, spacing, type } from '../theme/theme';
 
@@ -71,7 +72,8 @@ export function CompleteScreen({ route, navigation }: Props) {
     }
     setSaveState('saved');
     const today = await getToday();
-    setNext(today.data?.exercises.find((e) => !e.done) ?? null);
+    // Manual activities are ticked off on the Today screen, so "Next" only offers tracked exercises.
+    setNext(today.data?.exercises.find((e) => !e.done && !isManual(e)) ?? null);
   }, [planId, summary]);
 
   useEffect(() => {
@@ -110,7 +112,12 @@ export function CompleteScreen({ route, navigation }: Props) {
                 <Text style={styles.caption}>Saving to your record…</Text>
               </>
             )}
-            {saveState === 'saved' && <Text style={[styles.caption, { color: colors.motionSuccess }]}>✓ Saved. Your care team can see this session.</Text>}
+            {saveState === 'saved' && (
+              <>
+                <Check size={20} color={colors.motionSuccess} strokeWidth={3} accessible={false} />
+                <Text style={[styles.caption, { color: colors.motionSuccess }]}>Saved. Your care team can see this session.</Text>
+              </>
+            )}
             {saveState === 'failed' && <Text style={[styles.caption, { color: colors.danger }]}>Not saved: {saveError}</Text>}
           </View>
         ) : (

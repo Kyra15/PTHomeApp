@@ -2,13 +2,15 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { Bell, Check, ChevronRight, PartyPopper, Play, Target, TrendingUp, X, Zap } from 'lucide-react-native';
+import type { LucideIcon } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { useAuth } from '../auth/AuthContext';
 import { BigButton } from '../components/BigButton';
 import { CheckConnectionLink } from '../components/CheckConnectionLink';
 import { supabase } from '../lib/supabase';
-import { getMyInvitations, getToday } from '../lib/api';
+import { checkManualActivity, getMyInvitations, getToday, isManual } from '../lib/api';
 import type { TodayItem, TodayResponse, WeekDay } from '../lib/api';
 import { colors, radii, spacing, type } from '../theme/theme';
 
@@ -99,6 +101,23 @@ export function DashboardScreen({ navigation }: Props) {
   const startItem = (item: TodayItem) =>
     navigation.navigate('Exercise', { exerciseId: item.exercise.slug, planId: item.plan_id, sets: item.sets, reps: item.reps });
 
+  // Manual activities (custom items from the care team) aren't motion-tracked: tapping just ticks them
+  // off for today. The row flips right away, then we re-load so the streak / week strip catch up.
+  const [toggling, setToggling] = useState<string | null>(null);
+  const toggleManual = async (item: TodayItem) => {
+    if (toggling) return;
+    const done = !item.done;
+    setToggling(item.plan_id);
+    setToday((t) => t && { ...t, exercises: t.exercises.map((e) => (e.plan_id === item.plan_id ? { ...e, done } : e)) });
+    const { error: e } = await checkManualActivity(item.plan_id, done);
+    if (e) {
+      setToday((t) => t && { ...t, exercises: t.exercises.map((x) => (x.plan_id === item.plan_id ? { ...x, done: !done } : x)) });
+      Alert.alert("Couldn't save that", e);
+    }
+    await load();
+    setToggling(null);
+  };
+
   const openProfile = () =>
     Alert.alert(firstName ?? 'Your account', session?.user.email ?? undefined, [
       { text: 'Connect with a doctor', onPress: () => navigation.navigate('Connect') },
@@ -127,7 +146,7 @@ export function DashboardScreen({ navigation }: Props) {
             onPress={() => navigation.navigate('Connect')}
             style={styles.iconButton}
           >
-            <Text style={styles.bell}>🔔</Text>
+            <Bell size={28} color={colors.textPrimary} strokeWidth={2.25} accessible={false} />
             {pendingCount > 0 && <View style={styles.badge}><Text style={styles.badgeText}>{pendingCount}</Text></View>}
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="Account menu" onPress={openProfile} style={styles.avatar}>
@@ -160,16 +179,23 @@ export function DashboardScreen({ navigation }: Props) {
         ) : today ? (
           <>
             {today.status !== 'no_program' && <StreakCard today={today} />}
-            <ProgramCard today={today} doctors={doctors} remaining={remaining} onStart={startItem} />
+            <ProgramCard
+              today={today}
+              doctors={doctors}
+              remaining={remaining}
+              onStart={startItem}
+              onToggleManual={toggleManual}
+              toggling={toggling}
+            />
             {today.status !== 'no_program' && (
               <View style={styles.statsRow}>
                 <StatTile
-                  icon="📈"
+                  icon={TrendingUp}
                   value={today.stats.adherence_pct === null ? '—' : `${today.stats.adherence_pct}%`}
                   label="Adherence (30 days)"
                 />
                 <StatTile
-                  icon="🎯"
+                  icon={Target}
                   value={
                     today.stats.rom_change_deg === null
                       ? '—'
@@ -186,9 +212,7 @@ export function DashboardScreen({ navigation }: Props) {
                   <View key={e.plan_id} style={styles.upNextRow}>
                     <View style={[styles.dot, { backgroundColor: e.exercise.accent_color ?? colors.primary }]} />
                     <Text style={styles.rowTitle}>{e.exercise.name}</Text>
-                    <Text style={styles.muted}>
-                      {e.sets} × {e.reps}
-                    </Text>
+                    <Text style={styles.muted}>{isManual(e) ? 'Check off' : `${e.sets} × ${e.reps}`}</Text>
                   </View>
                 ))}
               </>
@@ -214,7 +238,10 @@ function StreakCard({ today }: { today: TodayResponse }) {
   return (
     <View style={styles.card}>
       <View style={styles.streakHeader}>
-        <Text style={styles.cardTitle}>⚡ {today.streak}-day streak</Text>
+        <View style={styles.iconTitle}>
+          <Zap size={26} color={colors.action} fill={colors.action} accessible={false} />
+          <Text style={styles.cardTitle}>{today.streak}-day streak</Text>
+        </View>
         <Text style={styles.muted}>This week</Text>
       </View>
       <View style={styles.weekRow}>
@@ -242,11 +269,16 @@ const DOT_STYLE: Record<WeekDay['state'], { bg: string; fg: string; border?: str
 
 function WeekDot({ day, letter }: { day: WeekDay; letter: string }) {
   const s = DOT_STYLE[day.state];
-  const glyph = day.state === 'done' ? '✓' : day.state === 'missed' ? '✕' : letter;
   return (
     <View style={styles.weekCol} accessible accessibilityLabel={`${day.date}: ${s.label}`}>
       <View style={[styles.weekDot, { backgroundColor: s.bg, borderColor: s.border ?? s.bg }]}>
-        <Text style={[styles.weekGlyph, { color: s.fg }]}>{glyph}</Text>
+        {day.state === 'done' ? (
+          <Check size={22} color={s.fg} strokeWidth={3.5} accessible={false} />
+        ) : day.state === 'missed' ? (
+          <X size={22} color={s.fg} strokeWidth={3.5} accessible={false} />
+        ) : (
+          <Text style={[styles.weekGlyph, { color: s.fg }]}>{letter}</Text>
+        )}
       </View>
       <Text style={styles.weekLetter}>{letter}</Text>
     </View>
@@ -258,11 +290,15 @@ function ProgramCard({
   doctors,
   remaining,
   onStart,
+  onToggleManual,
+  toggling,
 }: {
   today: TodayResponse;
   doctors: Doctor[];
   remaining: TodayItem[];
   onStart: (i: TodayItem) => void;
+  onToggleManual: (i: TodayItem) => void;
+  toggling: string | null;
 }) {
   if (today.status === 'no_program') {
     return (
@@ -298,53 +334,115 @@ function ProgramCard({
   }
 
   const done = today.status === 'complete';
+  // "Start" walks through motion-tracked exercises only; manual activities are ticked off in the list.
+  const nextTracked = remaining.find((i) => !isManual(i));
   return (
     <>
       <Text style={styles.sectionTitle}>Today&apos;s Program</Text>
       <View style={[styles.card, !done && styles.programCard]}>
-        <Text style={styles.cardTitle}>{done ? "Today's session complete 🎉" : `${remaining.length} of ${today.exercises.length} left`}</Text>
+        <View style={styles.iconTitle}>
+          {done && <PartyPopper size={26} color={colors.celebrate} accessible={false} />}
+          <Text style={styles.cardTitle}>{done ? "Today's session complete" : `${remaining.length} of ${today.exercises.length} left`}</Text>
+        </View>
         {!done && <Text style={styles.muted}>About {today.remaining_minutes} minutes</Text>}
         <View style={{ marginTop: spacing.sm }}>
-          {today.exercises.map((item) => (
-            <Pressable
-              key={item.plan_id}
-              accessibilityRole="button"
-              accessibilityLabel={`${item.exercise.name}, ${item.sets} ${item.sets === 1 ? 'set' : 'sets'} of ${item.reps}. ${item.done ? 'Done.' : 'Not done yet.'}`}
-              onPress={() => onStart(item)}
-              style={({ pressed }) => [styles.exerciseRow, pressed && { opacity: 0.7 }]}
-            >
-              <View style={[styles.check, item.done ? styles.checkDone : { borderColor: item.exercise.accent_color ?? colors.border }]}>
-                {item.done && <Text style={styles.checkMark}>✓</Text>}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.rowTitle, item.done && styles.rowDone]}>{item.exercise.name}</Text>
-                <Text style={styles.muted}>
-                  {item.sets === 1 ? `${item.reps} reps` : `${item.sets} sets × ${item.reps} reps`}{item.attempted && !item.done ? ' · started' : ''}
-                  {doctors.length > 1 ? ` · ${item.therapist_name}` : ''}
-                </Text>
-              </View>
-              <Text style={styles.chevron}>›</Text>
-            </Pressable>
-          ))}
+          {today.exercises.map((item) =>
+            isManual(item) ? (
+              <ManualRow
+                key={item.plan_id}
+                item={item}
+                busy={toggling === item.plan_id}
+                showDoctor={doctors.length > 1}
+                onToggle={() => onToggleManual(item)}
+              />
+            ) : (
+              <Pressable
+                key={item.plan_id}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.exercise.name}, ${item.sets} ${item.sets === 1 ? 'set' : 'sets'} of ${item.reps}. ${item.done ? 'Done.' : 'Not done yet.'}`}
+                onPress={() => onStart(item)}
+                style={({ pressed }) => [styles.exerciseRow, pressed && { opacity: 0.7 }]}
+              >
+                <View style={[styles.check, item.done ? styles.checkDone : { borderColor: item.exercise.accent_color ?? colors.border }]}>
+                  {item.done && <Check size={20} color={colors.textOnDark} strokeWidth={3.5} accessible={false} />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.rowTitle, item.done && styles.rowDone]}>{item.exercise.name}</Text>
+                  <Text style={styles.muted}>
+                    {item.sets === 1 ? `${item.reps} reps` : `${item.sets} sets × ${item.reps} reps`}{item.attempted && !item.done ? ' · started' : ''}
+                    {doctors.length > 1 ? ` · ${item.therapist_name}` : ''}
+                  </Text>
+                </View>
+                <ChevronRight size={30} color={colors.textSecondary} accessible={false} />
+              </Pressable>
+            ),
+          )}
         </View>
-        {!done && remaining.length > 0 && (
+        {!done && nextTracked && (
           <View style={{ marginTop: spacing.md }}>
             <BigButton
-              label={remaining.length === today.exercises.length ? "▶  Start Today's Session" : '▶  Continue Session'}
+              label={remaining.length === today.exercises.length ? "Start Today's Session" : 'Continue Session'}
+              icon={Play}
+              iconFilled
               accentColor={colors.action}
-              onPress={() => onStart(remaining[0])}
+              onPress={() => onStart(nextTracked)}
             />
           </View>
+        )}
+        {!done && !nextTracked && remaining.length > 0 && (
+          <Text style={[styles.muted, { marginTop: spacing.sm }]}>Tap each activity above once you&apos;ve done it.</Text>
         )}
       </View>
     </>
   );
 }
 
-function StatTile({ icon, value, label }: { icon: string; value: string; label: string }) {
+/** A custom activity from the care team: no motion tracking, the patient just checks it off. */
+function ManualRow({
+  item,
+  busy,
+  showDoctor,
+  onToggle,
+}: {
+  item: TodayItem;
+  busy: boolean;
+  showDoctor: boolean;
+  onToggle: () => void;
+}) {
+  const notes = item.exercise.description?.trim();
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked: item.done, busy }}
+      accessibilityLabel={`${item.exercise.name}. ${notes ? `${notes}. ` : ''}Activity from your care team.`}
+      accessibilityHint={item.done ? 'Double tap to mark as not done.' : 'Double tap to check it off.'}
+      onPress={onToggle}
+      disabled={busy}
+      style={({ pressed }) => [styles.exerciseRow, pressed && { opacity: 0.7 }]}
+    >
+      <View style={[styles.check, styles.manualCheck, item.done && styles.checkDone]}>
+        {busy ? (
+          <ActivityIndicator size="small" color={item.done ? colors.textOnDark : colors.primary} />
+        ) : item.done ? (
+          <Check size={20} color={colors.textOnDark} strokeWidth={3.5} accessible={false} />
+        ) : null}
+      </View>
+      <View style={{ flex: 1, paddingVertical: spacing.xs }}>
+        <Text style={[styles.rowTitle, item.done && styles.rowDone]}>{item.exercise.name}</Text>
+        {notes ? <Text style={styles.muted}>{notes}</Text> : null}
+        <Text style={styles.muted}>
+          {item.done ? 'Done — tap to undo' : 'Tap to check off'}
+          {showDoctor ? ` · ${item.therapist_name}` : ''}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function StatTile({ icon: Icon, value, label }: { icon: LucideIcon; value: string; label: string }) {
   return (
     <View style={[styles.card, styles.statTile]} accessible accessibilityLabel={`${label}: ${value === '—' ? 'not enough data yet' : value}`}>
-      <Text style={{ fontSize: 26 }}>{icon}</Text>
+      <Icon size={28} color={colors.primary} strokeWidth={2.25} accessible={false} />
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.muted}>{label}</Text>
     </View>
@@ -367,7 +465,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bell: { fontSize: 24 },
   badge: {
     position: 'absolute',
     top: -2,
@@ -395,7 +492,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   programCard: { backgroundColor: '#FFF8F5', borderColor: colors.actionSoft },
-  cardTitle: { ...type.h2, color: colors.textPrimary },
+  cardTitle: { ...type.h2, color: colors.textPrimary, flexShrink: 1 },
+  iconTitle: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   muted: { ...type.caption, color: colors.textSecondary },
   sectionTitle: { ...type.h2, color: colors.textPrimary, marginTop: spacing.xs, marginBottom: spacing.sm },
   streakHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -415,10 +513,9 @@ const styles = StyleSheet.create({
   },
   check: { width: 36, height: 36, borderRadius: 18, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
   checkDone: { backgroundColor: colors.motionSuccess, borderColor: colors.motionSuccess },
-  checkMark: { color: colors.textOnDark, fontWeight: '800', fontSize: 18 },
+  manualCheck: { borderRadius: 10, borderColor: colors.primary },
   rowTitle: { ...type.body, fontWeight: '700', color: colors.textPrimary, flexShrink: 1 },
   rowDone: { color: colors.textSecondary },
-  chevron: { fontSize: 34, color: colors.textSecondary },
   statsRow: { flexDirection: 'row', gap: spacing.sm },
   statTile: { flex: 1 },
   statValue: { ...type.h1, color: colors.textPrimary, marginTop: 4 },

@@ -63,7 +63,18 @@ Run in the Supabase SQL editor, in order:
 | `GET /patient/schedule?date=YYYY-MM-DD` | patient | Exercises due that day (task 2.2) |
 | `GET /patient/today?date=YYYY-MM-DD` | patient | Dashboard payload: status, today's exercises with done flags, week strip, streak, adherence %, ROM change, up next (task 2.1) |
 | `POST /patient/sessions` | patient | Save a finished or ended-early session to `exercise_logs` |
+| `POST /patient/manual/<plan_id>` | patient | `{local_date, done}` — tick / untick a manual activity for that day |
 | `POST /patient/push-test` | patient | Task 1.7: send a test push to my registered phones |
+
+### Manual activities (migration `0008`)
+
+Run `supabase/migrations/0008_manual_activities.sql`. A clinician can add a **manual activity** to a
+patient's program — anything the app can't motion-track ("Walk 10 minutes", "Theraband rows"). It's
+stored as a private `exercises` row (`sensor_mode = 'manual'`, `created_by` = the clinician) that never
+appears in the library, scheduled with a normal `plans` row, and checked off with a normal
+`exercise_logs` row, so streaks and adherence count it like any other exercise. In
+`PUT /therapist/patients/<id>/program`, send it as
+`{"manual": {"name", "instructions"}, "days_of_week": [...]}` (add `"exercise_id"` to keep/edit an existing one).
 
 `date` is always the **phone's** local date, so "today" follows the patient's time zone. Scheduling
 rules live in `app/schedule.py` (pure functions, tested in `tests/test_schedule.py` against 3 schedules).

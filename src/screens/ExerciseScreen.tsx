@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useKeepAwake } from 'expo-keep-awake';
+import { Pause, Play, Smartphone, X } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { Exercise } from '../types/exercise';
@@ -188,7 +189,7 @@ function ExerciseSession({
             />
             {!demoPlaying && (
               <View style={styles.playBadge}>
-                <Text style={[styles.playIcon, { color: exercise.accentColor }]}>▶</Text>
+                <Play size={36} color={exercise.accentColor} fill={exercise.accentColor} style={styles.playIcon} accessible={false} />
               </View>
             )}
             <View style={styles.demoLabel}>
@@ -215,7 +216,7 @@ function ExerciseSession({
           </View>
 
           <View style={styles.tipBox} accessible accessibilityLabel={`Positioning tip. ${exercise.positioningTip}`}>
-            <Text style={styles.tipIcon}>📱</Text>
+            <Smartphone size={30} color={colors.primary} strokeWidth={2.25} style={styles.tipIcon} accessible={false} />
             <View style={{ flex: 1 }}>
               <Text style={styles.tipTitle}>Positioning tip</Text>
               <Text style={styles.tipBody}>{exercise.positioningTip}</Text>
@@ -226,7 +227,9 @@ function ExerciseSession({
         </ScrollView>
         <View style={styles.footer}>
           <BigButton
-            label="▶  Start Exercise"
+            label="Start Exercise"
+            icon={Play}
+            iconFilled
             onPress={() => {
               setDemoPlaying(false);
               start();
@@ -329,7 +332,7 @@ function ExerciseSession({
           </View>
           {state.phase === 'active' && (
             <Pressable accessibilityRole="button" accessibilityLabel="End exercise" onPress={confirmEnd} style={styles.closeButton} hitSlop={12}>
-              <Text style={styles.closeText}>✕</Text>
+              <X size={30} color={colors.textOnDark} strokeWidth={3} accessible={false} />
             </Pressable>
           )}
         </View>
@@ -385,7 +388,9 @@ function ExerciseSession({
             </View>
             <View style={styles.activeBottom}>
               <BigButton
-                label="❚❚  Pause"
+                label="Pause"
+                icon={Pause}
+                iconFilled
                 variant="outline"
                 onPress={() => pause('user')}
                 style={styles.outlineOnDark}
@@ -425,7 +430,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  playIcon: { fontSize: 36, marginLeft: 6 },
+  playIcon: { marginLeft: 6 },
   demoLabel: {
     position: 'absolute',
     right: spacing.sm,
@@ -451,7 +456,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginTop: spacing.lg,
   },
-  tipIcon: { fontSize: 28 },
+  tipIcon: { marginTop: 2 },
   tipTitle: { ...type.bodyLarge, color: colors.textPrimary },
   tipBody: { ...type.body, color: colors.textSecondary, marginTop: 4 },
   safety: { ...type.caption, color: colors.textSecondary, marginTop: spacing.md, textAlign: 'center' },
@@ -468,7 +473,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  closeText: { fontSize: 26, color: colors.textOnDark, fontWeight: '800' },
   activeTop: { alignItems: 'center', paddingTop: spacing.sm, gap: spacing.sm },
   repCountText: { ...type.h1, color: colors.textOnDark },
   sensorCard: {

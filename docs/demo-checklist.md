@@ -243,7 +243,7 @@ Press Ctrl+C in each terminal. Next time, run only the **Every time** commands.
 
 ## The day before
 
-- [ ] **Database:** migrations `0001`–`0007` have been run in the Supabase SQL Editor (the program editor needs no
+- [ ] **Database:** migrations `0001`–`0008` have been run in the Supabase SQL Editor (the program editor needs no
       new migration). `backend/supabase/tests_rls.sql` should return every row `passed = true`.
 - [ ] **Backend:** redeploy on Render so the new `/therapist/patients…` endpoints exist. Check
       `https://<backend>/health` says `"supabase": "connected"`.

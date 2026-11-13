@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useKeepAwake } from 'expo-keep-awake';
 import { Accelerometer, Gyroscope } from 'expo-sensors';
 import Constants from 'expo-constants';
+import { Check, X } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { BigButton } from '../components/BigButton';
@@ -112,9 +113,16 @@ export function SensorCheckScreen({ navigation }: Props) {
             const pass = r.accel.hz >= r.requestedHz * 0.9 && r.gyro.hz >= r.requestedHz * 0.9;
             return (
               <View key={r.requestedHz} style={[styles.card, { borderColor: pass ? colors.motionSuccess : colors.danger }]}>
-                <Text style={styles.cardTitle}>
-                  {r.requestedHz} Hz requested — {pass ? 'OK ✓' : 'too slow ✕'}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+                  <Text style={styles.cardTitle}>
+                    {r.requestedHz} Hz requested — {pass ? 'OK' : 'too slow'}
+                  </Text>
+                  {pass ? (
+                    <Check size={22} color={colors.motionSuccess} strokeWidth={3} accessible={false} />
+                  ) : (
+                    <X size={22} color={colors.danger} strokeWidth={3} accessible={false} />
+                  )}
+                </View>
                 {(['accel', 'gyro'] as const).map((k) => (
                   <Text key={k} style={styles.mono}>
                     {k === 'accel' ? 'Accelerometer' : 'Gyroscope    '}: {r[k].hz} Hz · avg {r[k].meanIntervalMs} ms · jitter{' '}

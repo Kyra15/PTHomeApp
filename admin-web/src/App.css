@@ -57,6 +57,19 @@
 }
 .field input::placeholder { color: #A3B0AC; }
 .field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 107, 74, 0.15); }
+.field textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 15px;
+  background: var(--surface);
+  color: var(--text);
+  resize: vertical;
+}
+.field textarea::placeholder { color: #A3B0AC; }
+.field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 107, 74, 0.15); }
 .field-hint { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
 
 .error-banner {
@@ -494,6 +507,9 @@ a.btn-secondary { text-decoration: none; }
 .program-title { font-weight: 700; display: flex; align-items: center; gap: 8px; }
 .program-name .cell-sub { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .pill-tiny { padding: 2px 8px; font-size: 11px; }
+/* Manual (check-off) activities: no sets/reps, optional instructions under the name. */
+.program-row-manual { background: #FFFBF9; }
+.manual-notes { font-size: 13px; color: var(--text-secondary); margin-top: 4px; white-space: pre-wrap; }
 .num-field { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
 .num-field input {
   width: 58px;

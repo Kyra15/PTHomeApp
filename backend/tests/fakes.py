@@ -1,5 +1,5 @@
 """Tiny in-memory stand-in for the supabase-py client: just enough chainable query API
-(select/insert/update/upsert/eq/ilike/order/limit/execute, rpc, auth.get_user) for route tests."""
+(select/insert/update/upsert/delete/eq/ilike/order/limit/execute, rpc, auth.get_user) for route tests."""
 import itertools
 import uuid
 from types import SimpleNamespace
@@ -15,6 +15,7 @@ class Query:
     def select(self, *_a, **_k): return self
     def insert(self, row): self.op, self.payload = "insert", row; return self
     def update(self, row): self.op, self.payload = "update", row; return self
+    def delete(self): self.op = "delete"; return self
     def upsert(self, row, on_conflict=None): self.op, self.payload, self._on_conflict = "upsert", row, on_conflict; return self
     def eq(self, col, val): self.filters.append(("eq", col, val)); return self
     def ilike(self, col, val): self.filters.append(("ilike", col, val)); return self
@@ -58,6 +59,9 @@ class Query:
             rows.append({"id": str(uuid.uuid4()), **self.payload})
             return SimpleNamespace(data=[dict(rows[-1])])
         matched = [r for r in rows if self._match(r)]
+        if self.op == "delete":
+            self.db.tables[self.name] = [r for r in rows if not self._match(r)]
+            return SimpleNamespace(data=[dict(r) for r in matched])
         if self.op == "update":
             for r in matched:
                 r.update(self.payload)

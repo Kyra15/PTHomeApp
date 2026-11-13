@@ -170,3 +170,88 @@ def test_roster_summary(env):
     other = env.client.get(f"/therapist/patients?date={TODAY}", headers=env.t2).get_json()["patients"][0]
     assert other["program"]["exercise_count"] == 0
     assert env.client.get("/therapist/patients", headers=env.p1).status_code == 403
+
+
+# ---------- manual activities (custom, check-off only) ----------
+def manual(name, days, instructions="", exercise_id=None):
+    item = {"manual": {"name": name, "instructions": instructions}, "days_of_week": days}
+    if exercise_id:
+        item["exercise_id"] = exercise_id
+    return item
+
+
+def test_manual_activity_is_private_and_checked_off(env):
+    body = program(("shoulder-flexion", 2, 8, [3]))
+    body["items"].append(manual("Walk 10 minutes", [1, 3, 5], "Easy pace, flat ground."))
+    r = env.client.put("/therapist/patients/p1/program", json=body, headers=env.t1)
+    assert r.status_code == 200, r.get_json()
+    prog = r.get_json()["program"]
+    walk = prog[1]
+    assert walk["exercise"]["sensor_mode"] == "manual" and walk["exercise"]["name"] == "Walk 10 minutes"
+    assert walk["exercise"]["description"] == "Easy pace, flat ground."
+    assert (walk["sets"], walk["reps"]) == (1, 1)
+    assert "created_by" not in walk["exercise"]
+    row = next(e for e in env.db.tables["exercises"] if e["id"] == walk["exercise"]["id"])
+    assert row["created_by"] == "t1" and row["slug"].startswith("manual-")
+
+    # never shows up in the shared library, for anyone
+    lib = env.client.get("/therapist/exercises", headers=env.t1).get_json()
+    assert lib["count"] == 20 and "Walk 10 minutes" not in [e["name"] for e in lib["exercises"]]
+
+    # roster doesn't list "Custom" as a body area
+    p = env.client.get(f"/therapist/patients?date={TODAY}", headers=env.t1).get_json()["patients"][0]
+    assert p["program"]["body_areas"] == ["Shoulder"] and p["program"]["exercise_count"] == 2
+
+    # the patient sees it in today's program and checks it off
+    today = env.client.get(f"/patient/today?date={TODAY}", headers=env.p1).get_json()
+    item = next(i for i in today["exercises"] if i["exercise"]["sensor_mode"] == "manual")
+    assert not item["done"]
+    url = f"/patient/manual/{item['plan_id']}"
+    assert env.client.post(url, json={"local_date": TODAY, "done": True}, headers=env.p1).status_code == 200
+    assert env.client.post(url, json={"local_date": TODAY, "done": True}, headers=env.p1).status_code == 200  # idempotent
+    logs = [l for l in env.db.tables["exercise_logs"] if l["plan_id"] == item["plan_id"]]
+    assert len(logs) == 1 and logs[0]["completed"] and logs[0]["summary"] == {"manual": True}
+    today = env.client.get(f"/patient/today?date={TODAY}", headers=env.p1).get_json()
+    assert next(i for i in today["exercises"] if i["plan_id"] == item["plan_id"])["done"]
+
+    # the clinician sees it as a checked-off session
+    detail = env.client.get(f"/therapist/patients/p1/program?date={TODAY}", headers=env.t1).get_json()
+    assert detail["recent_sessions"][0]["manual"] is True
+    assert detail["recent_sessions"][0]["exercise_name"] == "Walk 10 minutes"
+
+    # untick
+    assert env.client.post(url, json={"local_date": TODAY, "done": False}, headers=env.p1).get_json()["done"] is False
+    assert not [l for l in env.db.tables["exercise_logs"] if l["plan_id"] == item["plan_id"]]
+
+    # a tracked exercise can't be ticked off; another patient can't tick this one
+    tracked = next(i for i in today["exercises"] if i["exercise"]["sensor_mode"] != "manual")
+    assert env.client.post(f"/patient/manual/{tracked['plan_id']}", json={"local_date": TODAY}, headers=env.p1).status_code == 400
+    assert env.client.post(url, json={"local_date": TODAY}, headers=env.p2).status_code == 404
+    assert env.client.post(url, json={"local_date": TODAY, "done": "yes"}, headers=env.p1).status_code == 400
+
+
+def test_editing_a_manual_activity_keeps_its_plan(env):
+    body = {"start_date": TODAY, "items": [manual("Theraband rows", [3])]}
+    walk = env.client.put("/therapist/patients/p1/program", json=body, headers=env.t1).get_json()["program"][0]
+    ex_id, plan_id = walk["exercise"]["id"], walk["plan_id"]
+
+    body = {"start_date": TODAY, "items": [manual("Theraband rows — green band", [1, 3], "3 sets of 12", ex_id)]}
+    edited = env.client.put("/therapist/patients/p1/program", json=body, headers=env.t1).get_json()["program"][0]
+    assert edited["plan_id"] == plan_id and edited["exercise"]["id"] == ex_id
+    assert edited["exercise"]["name"] == "Theraband rows — green band" and edited["days_of_week"] == [1, 3]
+    assert len([e for e in env.db.tables["exercises"] if e.get("created_by")]) == 1
+
+
+def test_manual_activity_validation_and_ownership(env):
+    put = lambda items, h=env.t1: env.client.put("/therapist/patients/p1/program", json={"start_date": TODAY, "items": items}, headers=h)
+    assert put([manual("", [3])]).status_code == 400
+    assert put([manual("x" * 81, [3])]).status_code == 400
+    assert put([manual("Walk", [3], "x" * 501)]).status_code == 400
+    assert put([manual("Walk", [])]).status_code == 400
+    assert put([{"manual": "Walk", "days_of_week": [3]}]).status_code == 400
+
+    ex_id = put([manual("Walk", [3])]).get_json()["program"][0]["exercise"]["id"]
+    # t2 can't edit t1's activity, or prescribe it as a "library" exercise
+    assert put([manual("Hijack", [3], exercise_id=ex_id)], env.t2).status_code == 400
+    assert put([{"exercise_id": ex_id, "sets": 1, "reps": 1, "days_of_week": [3]}], env.t2).status_code == 400
+    assert next(e for e in env.db.tables["exercises"] if e["id"] == ex_id)["name"] == "Walk"

@@ -11,15 +11,21 @@ for other clinics' patients.
   PUT /therapist/patients/<id>/program              save my program for this patient (replaces it)
       {"start_date": "YYYY-MM-DD",                  the portal's local "today"; changes apply from then
        "items": [{"exercise_id", "sets", "reps", "days_of_week": [0..6]}, ...]}   (0 = Sunday)
+      A manual activity (no motion tracking — the patient just checks it off) is an item with
+      {"manual": {"name", "instructions"}, "days_of_week": [...]} plus "exercise_id" when it already
+      exists. sets/reps are ignored for it (stored as 1 × 1).
 
 Saving rules (Flow 6):
   * an empty program is rejected; each exercise at most once; sets 1–10, reps 1–50; ≥1 day per exercise
   * plans are matched by exercise: a kept exercise is updated in place, so its history and streak stay
     attached; a removed one gets end_date = the day before start_date (kept for history, no longer due);
     a new one starts on start_date
+  * a new manual activity gets its own private exercises row (sensor_mode 'manual', created_by me);
+    an existing one may only be edited while it's one of my current plans for this patient
   * only MY plans change — another therapist's prescriptions for the same patient are never touched
   * the patient gets a best-effort push ("Your program was updated")
 """
+import uuid
 from datetime import date, timedelta
 
 from flask import Blueprint, current_app, g, jsonify, request
@@ -27,11 +33,12 @@ from flask import Blueprint, current_app, g, jsonify, request
 from .. import schedule as sch
 from ..auth import display_name, require_role
 from ..notify import send_push
-from .program import EXERCISE_COLUMNS, _exercise_public, _local_date
+from .program import EXERCISE_COLUMNS, MANUAL, _exercise_public, _local_date, is_manual
 
 bp = Blueprint("care", __name__)
 
 MAX_SETS, MAX_REPS, MAX_ITEMS = 10, 50, 20
+MAX_MANUAL_NAME, MAX_MANUAL_INSTRUCTIONS = 80, 500
 RECENT_SESSIONS = 15
 LOG_COLUMNS = (
     "id, plan_id, exercise_id, local_date, completed, completed_at, reps_completed, sets_completed, "
@@ -169,6 +176,7 @@ def _program_payload(client, therapist_id: str, patient_id: str, day: date) -> d
                 "avg_rom_degrees": l.get("avg_rom_degrees"),
                 "duration_seconds": l.get("duration_seconds"),
                 "completed": l.get("completed", True),
+                "manual": is_manual(exercises.get(l["exercise_id"])),
             }
             for l in recent[:RECENT_SESSIONS]
         ],
@@ -182,22 +190,49 @@ def _validate_items(raw) -> tuple[list[dict] | None, str | None]:
         return None, f"A program can have at most {MAX_ITEMS} exercises."
     items, seen = [], set()
     for i, it in enumerate(raw):
-        if not isinstance(it, dict) or not isinstance(it.get("exercise_id"), str) or not it["exercise_id"]:
+        if not isinstance(it, dict):
             return None, f"Exercise #{i + 1} is missing."
-        if it["exercise_id"] in seen:
-            return None, "Each exercise can only be in the program once."
-        seen.add(it["exercise_id"])
-        sets, reps, days = it.get("sets"), it.get("reps"), it.get("days_of_week")
-        if isinstance(sets, bool) or not isinstance(sets, int) or not 1 <= sets <= MAX_SETS:
-            return None, f"Sets must be between 1 and {MAX_SETS}."
-        if isinstance(reps, bool) or not isinstance(reps, int) or not 1 <= reps <= MAX_REPS:
-            return None, f"Reps must be between 1 and {MAX_REPS}."
+        manual = it.get("manual")
+        ex_id = it.get("exercise_id")
+        if manual is None and (not isinstance(ex_id, str) or not ex_id):
+            return None, f"Exercise #{i + 1} is missing."
+        if ex_id is not None and (not isinstance(ex_id, str) or not ex_id):
+            return None, f"Exercise #{i + 1} is missing."
+        if ex_id:
+            if ex_id in seen:
+                return None, "Each exercise can only be in the program once."
+            seen.add(ex_id)
+        days = it.get("days_of_week")
         if (
             not isinstance(days, list) or not days
             or any(isinstance(d, bool) or not isinstance(d, int) or not 0 <= d <= 6 for d in days)
         ):
             return None, "Pick at least one day of the week for every exercise."
-        items.append({"exercise_id": it["exercise_id"], "sets": sets, "reps": reps, "days_of_week": sorted(set(days))})
+        days = sorted(set(days))
+
+        if manual is not None:
+            if not isinstance(manual, dict):
+                return None, f"Activity #{i + 1} is missing its name."
+            name = manual.get("name")
+            notes = manual.get("instructions") or ""
+            if not isinstance(name, str) or not name.strip():
+                return None, "Give every manual activity a name."
+            if len(name.strip()) > MAX_MANUAL_NAME:
+                return None, f"Activity names can be at most {MAX_MANUAL_NAME} characters."
+            if not isinstance(notes, str) or len(notes.strip()) > MAX_MANUAL_INSTRUCTIONS:
+                return None, f"Activity instructions can be at most {MAX_MANUAL_INSTRUCTIONS} characters."
+            items.append({
+                "exercise_id": ex_id or None, "sets": 1, "reps": 1, "days_of_week": days,
+                "manual": {"name": name.strip(), "instructions": notes.strip()},
+            })
+            continue
+
+        sets, reps = it.get("sets"), it.get("reps")
+        if isinstance(sets, bool) or not isinstance(sets, int) or not 1 <= sets <= MAX_SETS:
+            return None, f"Sets must be between 1 and {MAX_SETS}."
+        if isinstance(reps, bool) or not isinstance(reps, int) or not 1 <= reps <= MAX_REPS:
+            return None, f"Reps must be between 1 and {MAX_REPS}."
+        items.append({"exercise_id": ex_id, "sets": sets, "reps": reps, "days_of_week": days, "manual": None})
     return items, None
 
 
@@ -228,7 +263,10 @@ def roster():
         p_plans = [p for p in plans if p["patient_id"] == u["id"]]
         p_logs = [l for l in logs if l.get("patient_id") == u["id"]]
         mine = [p for p in p_plans if p["therapist_id"] == me and _is_current(p, day)]
-        areas = sorted({(exercises.get(p["exercise_id"]) or {}).get("body_area") or "" for p in mine} - {""})
+        areas = sorted(
+            {(exercises.get(p["exercise_id"]) or {}).get("body_area") or "" for p in mine if not is_manual(exercises.get(p["exercise_id"]))}
+            - {""}
+        )
         days = sorted({d for p in mine for d in (p.get("days_of_week") or [])})
         last = _last_log(p_logs)
         out.append({
@@ -272,12 +310,49 @@ def save_program(patient_id):
     if err:
         return jsonify(error=err), 400
 
-    found = _exercises_by_id(client, [i["exercise_id"] for i in items])
-    if any(i["exercise_id"] not in found or found[i["exercise_id"]].get("active") is False for i in items):
-        return jsonify(error="One of those exercises isn't in the library."), 400
-
     plans = client.table("plans").select("*").eq("patient_id", patient_id).eq("therapist_id", me).execute().data or []
     current = {p["exercise_id"]: p for p in plans if _is_current(p, start)}
+
+    found = _exercises_by_id(client, [i["exercise_id"] for i in items if i["exercise_id"]])
+    for it in items:
+        ex = found.get(it["exercise_id"]) if it["exercise_id"] else None
+        if it["manual"] is None:
+            # library exercise: must exist, be active and not be someone's private manual activity
+            if not ex or ex.get("active") is False or is_manual(ex) or ex.get("created_by"):
+                return jsonify(error="One of those exercises isn't in the library."), 400
+        elif it["exercise_id"] and (not is_manual(ex) or it["exercise_id"] not in current):
+            # editing a manual activity: only one that's already in MY current program for this patient
+            return jsonify(error="That activity isn't part of your program for this patient."), 400
+
+    for it in items:
+        if it["manual"] is None:
+            continue
+        fields = {
+            "name": it["manual"]["name"],
+            "description": it["manual"]["instructions"] or None,
+            "instructions": [it["manual"]["instructions"]] if it["manual"]["instructions"] else [],
+        }
+        if it["exercise_id"]:
+            ex = found[it["exercise_id"]]
+            if (ex.get("name"), ex.get("description")) != (fields["name"], fields["description"]):
+                client.table("exercises").update(fields).eq("id", it["exercise_id"]).execute()
+        else:
+            row = client.table("exercises").insert({
+                **fields,
+                "slug": f"manual-{uuid.uuid4().hex[:12]}",
+                "body_area": "Custom",
+                "sensor_mode": MANUAL,
+                "diagram": "dial",
+                "default_sets": 1,
+                "default_reps": 1,
+                "est_minutes": 5,
+                "equipment": "none",
+                "tags": [],
+                "created_by": me,
+                "active": True,
+            }).execute().data[0]
+            it["exercise_id"] = row["id"]
+
     wanted = {i["exercise_id"] for i in items}
 
     for order, it in enumerate(items):

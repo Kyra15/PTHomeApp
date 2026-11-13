@@ -1,0 +1,1658 @@
+diff --git a/README.md b/README.md
+index 84ce377..2f21865 100644
+--- a/README.md
++++ b/README.md
+@@ -93,7 +93,7 @@ never commit it or put it in the app.
+ 
+ ### Database (Supabase)
+ 
+-Run each file in `backend/supabase/migrations/` in order (`0001` through `0007`) in the Supabase SQL Editor, then run
++Run each file in `backend/supabase/migrations/` in order (`0001` through `0008`) in the Supabase SQL Editor, then run
+ `backend/supabase/tests_rls.sql` to check the access rules. Every row it returns should show
+ `passed = true`.
+ 
+diff --git a/admin-web/src/App.css b/admin-web/src/App.css
+index 49f8c56..7bb7c22 100644
+--- a/admin-web/src/App.css
++++ b/admin-web/src/App.css
+@@ -57,6 +57,19 @@
+ }
+ .field input::placeholder { color: #A3B0AC; }
+ .field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 107, 74, 0.15); }
++.field textarea {
++  width: 100%;
++  padding: 12px 14px;
++  border: 1.5px solid var(--border);
++  border-radius: var(--radius-sm);
++  font: inherit;
++  font-size: 15px;
++  background: var(--surface);
++  color: var(--text);
++  resize: vertical;
++}
++.field textarea::placeholder { color: #A3B0AC; }
++.field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 107, 74, 0.15); }
+ .field-hint { font-size: 12px; color: var(--text-secondary); margin-top: 4px; }
+ 
+ .error-banner {
+@@ -494,6 +507,9 @@ a.btn-secondary { text-decoration: none; }
+ .program-title { font-weight: 700; display: flex; align-items: center; gap: 8px; }
+ .program-name .cell-sub { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+ .pill-tiny { padding: 2px 8px; font-size: 11px; }
++/* Manual (check-off) activities: no sets/reps, optional instructions under the name. */
++.program-row-manual { background: #FFFBF9; }
++.manual-notes { font-size: 13px; color: var(--text-secondary); margin-top: 4px; white-space: pre-wrap; }
+ .num-field { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+ .num-field input {
+   width: 58px;
+diff --git a/admin-web/src/lib/api.ts b/admin-web/src/lib/api.ts
+index 416dd45..8665aa6 100644
+--- a/admin-web/src/lib/api.ts
++++ b/admin-web/src/lib/api.ts
+@@ -153,7 +153,8 @@ export interface ProgramExercise {
+   name: string;
+   body_area: string;
+   description: string | null;
+-  sensor_mode: 'tilt' | 'rotation';
++  /** 'manual' = a custom activity this clinician wrote; the patient just checks it off. */
++  sensor_mode: 'tilt' | 'rotation' | 'manual';
+   default_sets: number;
+   default_reps: number;
+   est_minutes: number | null;
+@@ -183,6 +184,8 @@ export interface RecentSession {
+   avg_rom_degrees: number | null;
+   duration_seconds: number | null;
+   completed: boolean;
++  /** A manual activity the patient checked off (no reps / range / time). */
++  manual: boolean;
+ }
+ 
+ export interface PatientProgram {
+@@ -202,12 +205,19 @@ export interface PatientProgram {
+ }
+ 
+ export interface ProgramItemInput {
+-  exercise_id: string;
++  /** Library exercise, or an existing manual activity being kept/edited. Omit for a new manual activity. */
++  exercise_id?: string;
+   sets: number;
+   reps: number;
+   days_of_week: number[];
++  /** Set for a manual (check-off) activity. */
++  manual?: { name: string; instructions: string };
+ }
+ 
++export const isManualExercise = (ex: { sensor_mode: string } | null | undefined) => ex?.sensor_mode === 'manual';
++export const MANUAL_NAME_MAX = 80;
++export const MANUAL_INSTRUCTIONS_MAX = 500;
++
+ export const listPatients = () =>
+   authed<{ date: string; patients: RosterPatient[] }>(`/therapist/patients?date=${localDateString()}`);
+ 
+diff --git a/admin-web/src/pages/PatientDetailPage.tsx b/admin-web/src/pages/PatientDetailPage.tsx
+index db55d90..0346f93 100644
+--- a/admin-web/src/pages/PatientDetailPage.tsx
++++ b/admin-web/src/pages/PatientDetailPage.tsx
+@@ -7,7 +7,9 @@ import {
+   ArrowUp,
+   CalendarCheck,
+   Check,
++  ClipboardCheck,
+   Flame,
++  Pencil,
+   Plus,
+   RotateCw,
+   Search,
+@@ -24,30 +26,72 @@ import {
+   formatDays,
+   formatShortDate,
+   getPatientProgram,
++  isManualExercise,
+   listLibrary,
++  MANUAL_INSTRUCTIONS_MAX,
++  MANUAL_NAME_MAX,
+   savePatientProgram,
+ } from '../lib/api';
+-import type { PatientProgram, ProgramExercise } from '../lib/api';
++import type { PatientProgram, ProgramExercise, ProgramItemInput } from '../lib/api';
+ 
+ const AREA_ORDER = ['Shoulder', 'Elbow & Wrist', 'Back & Core', 'Hip', 'Knee', 'Ankle & Foot'];
+ const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
+ const MAX_SETS = 10;
+ const MAX_REPS = 50;
+ 
++interface ManualFields {
++  name: string;
++  instructions: string;
++}
++
++/**
++ * One row of the program being edited. A library exercise has `exercise`; a manual (check-off) activity
++ * has `manual`, plus `exercise` once it has been saved (its private exercises row).
++ */
+ interface DraftItem {
+-  exercise: ProgramExercise;
++  key: string;
++  exercise: ProgramExercise | null;
++  manual: ManualFields | null;
+   sets: number;
+   reps: number;
+   days: number[];
+ }
+ 
++let newKey = 0;
++const nextKey = () => `new-${++newKey}`;
++
++function itemName(i: DraftItem): string {
++  return i.manual?.name || i.exercise?.name || 'Activity';
++}
++
+ function toDraft(data: PatientProgram): DraftItem[] {
+-  return data.program.map((p) => ({ exercise: p.exercise, sets: p.sets, reps: p.reps, days: [...p.days_of_week] }));
++  return data.program.map((p) => ({
++    key: p.exercise.id,
++    exercise: p.exercise,
++    manual: isManualExercise(p.exercise) ? { name: p.exercise.name, instructions: p.exercise.description ?? '' } : null,
++    sets: p.sets,
++    reps: p.reps,
++    days: [...p.days_of_week],
++  }));
+ }
+ 
+ function sameDraft(a: DraftItem[], b: DraftItem[]): boolean {
+-  return JSON.stringify(a.map((i) => [i.exercise.id, i.sets, i.reps, [...i.days].sort()])) ===
+-    JSON.stringify(b.map((i) => [i.exercise.id, i.sets, i.reps, [...i.days].sort()]));
++  const sig = (d: DraftItem[]) =>
++    JSON.stringify(d.map((i) => [i.key, i.manual?.name, i.manual?.instructions, i.sets, i.reps, [...i.days].sort()]));
++  return sig(a) === sig(b);
++}
++
++function toInput(i: DraftItem): ProgramItemInput {
++  if (i.manual) {
++    return {
++      ...(i.exercise ? { exercise_id: i.exercise.id } : {}),
++      manual: { name: i.manual.name.trim(), instructions: i.manual.instructions.trim() },
++      sets: 1,
++      reps: 1,
++      days_of_week: i.days,
++    };
++  }
++  return { exercise_id: i.exercise!.id, sets: i.sets, reps: i.reps, days_of_week: i.days };
+ }
+ 
+ function clamp(n: number, lo: number, hi: number) {
+@@ -69,6 +113,8 @@ export function PatientDetailPage() {
+   const [notice, setNotice] = useState<string | null>(null);
+   const [saving, setSaving] = useState(false);
+   const [adding, setAdding] = useState(false);
++  // index of the manual activity being edited, or 'new' while adding one
++  const [editingManual, setEditingManual] = useState<number | 'new' | null>(null);
+ 
+   useEffect(() => {
+     let cancelled = false;
+@@ -99,7 +145,7 @@ export function PatientDetailPage() {
+ 
+   const [todayDow] = useState(() => new Date().getDay());
+   const dueToday = draft.filter((i) => i.days.includes(todayDow)).length;
+-  const draftMinutes = draft.reduce((m, i) => m + (i.exercise.est_minutes ?? 5), 0);
++  const draftMinutes = draft.reduce((m, i) => m + (i.exercise?.est_minutes ?? 5), 0);
+ 
+   function update(index: number, change: Partial<DraftItem>) {
+     setNotice(null);
+@@ -131,7 +177,9 @@ export function PatientDetailPage() {
+     setDraft((d) => [
+       ...d,
+       {
++        key: ex.id,
+         exercise: ex,
++        manual: null,
+         sets: ex.default_sets,
+         reps: ex.default_reps,
+         // New exercises follow the schedule of the last one added, or every day for a new program.
+@@ -140,10 +188,31 @@ export function PatientDetailPage() {
+     ]);
+   }
+ 
++  function saveManual(fields: ManualFields) {
++    if (editingManual === 'new') {
++      setNotice(null);
++      setDraft((d) => [
++        ...d,
++        {
++          key: nextKey(),
++          exercise: null,
++          manual: fields,
++          sets: 1,
++          reps: 1,
++          days: d.length ? [...d[d.length - 1].days] : [...EVERY_DAY],
++        },
++      ]);
++    } else if (editingManual !== null) {
++      update(editingManual, { manual: fields });
++    }
++    setEditingManual(null);
++  }
++
+   const validation = useMemo(() => {
+-    if (draft.length === 0) return 'Add at least one exercise before saving.';
++    if (draft.length === 0) return 'Add at least one exercise or activity before saving.';
+     const noDays = draft.find((i) => i.days.length === 0);
+-    if (noDays) return `Pick at least one day for ${noDays.exercise.name}.`;
++    if (noDays) return `Pick at least one day for ${itemName(noDays)}.`;
++    if (draft.some((i) => i.manual && !i.manual.name.trim())) return 'Give every manual activity a name.';
+     return null;
+   }, [draft]);
+ 
+@@ -156,7 +225,7 @@ export function PatientDetailPage() {
+     setError(null);
+     const { data: d, error: e } = await savePatientProgram(
+       patientId,
+-      draft.map((i) => ({ exercise_id: i.exercise.id, sets: i.sets, reps: i.reps, days_of_week: i.days })),
++      draft.map(toInput),
+     );
+     setSaving(false);
+     if (e || !d) {
+@@ -256,90 +325,126 @@ export function PatientDetailPage() {
+                 : `${draft.length} exercise${draft.length === 1 ? '' : 's'} · ~${draftMinutes} min per full session · ${dueToday} due today (${DAY_NAMES[todayDow]})`}
+             </p>
+           </div>
+-          <button className="btn-secondary" onClick={() => setAdding(true)}>
+-            <Plus size={15} />
+-            Add exercise
+-          </button>
++          <div className="row-actions">
++            <button className="btn-secondary" onClick={() => setEditingManual('new')}>
++              <ClipboardCheck size={15} />
++              Add manual activity
++            </button>
++            <button className="btn-secondary" onClick={() => setAdding(true)}>
++              <Plus size={15} />
++              Add exercise
++            </button>
++          </div>
+         </div>
+ 
+         {draft.length === 0 ? (
+           <div className="program-empty">
+             <p>Build {data.patient.name.split(' ')[0]}'s home program from the motion-tracked exercise library.</p>
+-            <button className="btn-accent" onClick={() => setAdding(true)}>
+-              <Plus size={16} />
+-              Add the first exercise
+-            </button>
++            <div className="row-actions" style={{ justifyContent: 'center' }}>
++              <button className="btn-accent" onClick={() => setAdding(true)}>
++                <Plus size={16} />
++                Add the first exercise
++              </button>
++              <button className="btn-secondary" onClick={() => setEditingManual('new')}>
++                <ClipboardCheck size={16} />
++                Add a manual activity
++              </button>
++            </div>
+           </div>
+         ) : (
+           <ol className="program-list">
+-            {draft.map((item, i) => (
+-              <li key={item.exercise.id} className="program-row">
+-                <span className="program-swatch" style={{ background: item.exercise.accent_color ?? 'var(--teal)' }} />
+-                <div className="program-name">
+-                  <div className="program-title">
+-                    {item.exercise.name}
+-                    {item.days.includes(todayDow) ? <span className="pill pill-success pill-tiny">Today</span> : null}
+-                  </div>
+-                  <div className="cell-sub">
+-                    {item.exercise.sensor_mode === 'tilt' ? <Activity size={12} /> : <RotateCw size={12} />}{' '}
+-                    {item.exercise.body_area} · {item.exercise.sensor_mode === 'tilt' ? 'tilt tracked' : 'rotation tracked'} ·{' '}
+-                    {formatDays(item.days)}
++            {draft.map((item, i) => {
++              const name = itemName(item);
++              const ex = item.exercise;
++              return (
++                <li key={item.key} className={`program-row${item.manual ? ' program-row-manual' : ''}`}>
++                  <span
++                    className="program-swatch"
++                    style={{ background: item.manual ? 'var(--accent)' : (ex?.accent_color ?? 'var(--teal)') }}
++                  />
++                  <div className="program-name">
++                    <div className="program-title">
++                      {name}
++                      {item.days.includes(todayDow) ? <span className="pill pill-success pill-tiny">Today</span> : null}
++                    </div>
++                    <div className="cell-sub">
++                      {item.manual ? (
++                        <>
++                          <ClipboardCheck size={12} /> Manual activity · patient checks it off · {formatDays(item.days)}
++                        </>
++                      ) : (
++                        <>
++                          {ex?.sensor_mode === 'tilt' ? <Activity size={12} /> : <RotateCw size={12} />} {ex?.body_area} ·{' '}
++                          {ex?.sensor_mode === 'tilt' ? 'tilt tracked' : 'rotation tracked'} · {formatDays(item.days)}
++                        </>
++                      )}
++                    </div>
++                    {item.manual?.instructions ? <div className="manual-notes">{item.manual.instructions}</div> : null}
+                   </div>
+-                </div>
+ 
+-                <label className="num-field">
+-                  <span>Sets</span>
+-                  <input
+-                    type="number"
+-                    min={1}
+-                    max={MAX_SETS}
+-                    value={item.sets}
+-                    aria-label={`${item.exercise.name} sets`}
+-                    onChange={(e) => update(i, { sets: clamp(Number(e.target.value) || 1, 1, MAX_SETS) })}
+-                  />
+-                </label>
+-                <span className="times">×</span>
+-                <label className="num-field">
+-                  <span>Reps</span>
+-                  <input
+-                    type="number"
+-                    min={1}
+-                    max={MAX_REPS}
+-                    value={item.reps}
+-                    aria-label={`${item.exercise.name} reps`}
+-                    onChange={(e) => update(i, { reps: clamp(Number(e.target.value) || 1, 1, MAX_REPS) })}
+-                  />
+-                </label>
+-
+-                <div className="day-toggles" role="group" aria-label={`${item.exercise.name} days`}>
+-                  {DAY_LETTERS.map((letter, d) => (
+-                    <button
+-                      key={d}
+-                      type="button"
+-                      className={`day-toggle${item.days.includes(d) ? ' day-toggle-on' : ''}`}
+-                      aria-pressed={item.days.includes(d)}
+-                      aria-label={DAY_NAMES[d]}
+-                      title={DAY_NAMES[d]}
+-                      onClick={() => toggleDay(i, d)}
+-                    >
+-                      {letter}
++                  {item.manual ? (
++                    <button type="button" className="btn-secondary btn-small" onClick={() => setEditingManual(i)}>
++                      <Pencil size={14} />
++                      Edit
+                     </button>
+-                  ))}
+-                </div>
++                  ) : (
++                    <>
++                      <label className="num-field">
++                        <span>Sets</span>
++                        <input
++                          type="number"
++                          min={1}
++                          max={MAX_SETS}
++                          value={item.sets}
++                          aria-label={`${name} sets`}
++                          onChange={(e) => update(i, { sets: clamp(Number(e.target.value) || 1, 1, MAX_SETS) })}
++                        />
++                      </label>
++                      <span className="times">×</span>
++                      <label className="num-field">
++                        <span>Reps</span>
++                        <input
++                          type="number"
++                          min={1}
++                          max={MAX_REPS}
++                          value={item.reps}
++                          aria-label={`${name} reps`}
++                          onChange={(e) => update(i, { reps: clamp(Number(e.target.value) || 1, 1, MAX_REPS) })}
++                        />
++                      </label>
++                    </>
++                  )}
++
++                  <div className="day-toggles" role="group" aria-label={`${name} days`}>
++                    {DAY_LETTERS.map((letter, d) => (
++                      <button
++                        key={d}
++                        type="button"
++                        className={`day-toggle${item.days.includes(d) ? ' day-toggle-on' : ''}`}
++                        aria-pressed={item.days.includes(d)}
++                        aria-label={DAY_NAMES[d]}
++                        title={DAY_NAMES[d]}
++                        onClick={() => toggleDay(i, d)}
++                      >
++                        {letter}
++                      </button>
++                    ))}
++                  </div>
+ 
+-                <div className="row-actions">
+-                  <button className="icon-btn" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up">
+-                    <ArrowUp size={15} />
+-                  </button>
+-                  <button className="icon-btn" onClick={() => move(i, 1)} disabled={i === draft.length - 1} aria-label="Move down">
+-                    <ArrowDown size={15} />
+-                  </button>
+-                  <button className="icon-btn icon-btn-danger" onClick={() => remove(i)} aria-label={`Remove ${item.exercise.name}`}>
+-                    <Trash2 size={15} />
+-                  </button>
+-                </div>
+-              </li>
+-            ))}
++                  <div className="row-actions">
++                    <button className="icon-btn" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up">
++                      <ArrowUp size={15} />
++                    </button>
++                    <button className="icon-btn" onClick={() => move(i, 1)} disabled={i === draft.length - 1} aria-label="Move down">
++                      <ArrowDown size={15} />
++                    </button>
++                    <button className="icon-btn icon-btn-danger" onClick={() => remove(i)} aria-label={`Remove ${name}`}>
++                      <Trash2 size={15} />
++                    </button>
++                  </div>
++                </li>
++              );
++            })}
+           </ol>
+         )}
+         {dirty ? <p className="section-foot">Unsaved changes. They apply from today once you save.</p> : null}
+@@ -356,7 +461,8 @@ export function PatientDetailPage() {
+           <ul className="simple-list">
+             {data.other_programs.map((p) => (
+               <li key={p.plan_id}>
+-                <strong>{p.exercise.name}</strong> · {p.sets} × {p.reps} · {formatDays(p.days_of_week)}
++                <strong>{p.exercise.name}</strong> ·{' '}
++                {isManualExercise(p.exercise) ? 'manual check-off' : `${p.sets} × ${p.reps}`} · {formatDays(p.days_of_week)}
+                 <span className="cell-sub"> — {p.therapist_name}</span>
+               </li>
+             ))}
+@@ -368,7 +474,7 @@ export function PatientDetailPage() {
+         <div className="section-head">
+           <div>
+             <h2>Recent sessions</h2>
+-            <p className="section-sub">Recorded by the patient's iPhone during each exercise.</p>
++            <p className="section-sub">Recorded by the patient's iPhone during each exercise, plus manual activities they checked off.</p>
+           </div>
+         </div>
+         {data.recent_sessions.length === 0 ? (
+@@ -391,14 +497,14 @@ export function PatientDetailPage() {
+                   <td>{formatShortDate(s.local_date)}</td>
+                   <td>{s.exercise_name}</td>
+                   <td>
+-                    {s.reps_completed ?? '—'}
+-                    {s.target_reps_total ? ` / ${s.target_reps_total}` : ''}
++                    {s.manual ? '—' : (s.reps_completed ?? '—')}
++                    {!s.manual && s.target_reps_total ? ` / ${s.target_reps_total}` : ''}
+                   </td>
+                   <td>{s.avg_rom_degrees === null ? '—' : `${Math.round(s.avg_rom_degrees)}°`}</td>
+                   <td>{s.duration_seconds === null ? '—' : `${Math.floor(s.duration_seconds / 60)}:${String(s.duration_seconds % 60).padStart(2, '0')}`}</td>
+                   <td>
+                     <span className={`pill ${s.completed ? 'pill-success' : 'pill-warning'}`}>
+-                      {s.completed ? 'Completed' : 'Ended early'}
++                      {s.manual ? 'Checked off' : s.completed ? 'Completed' : 'Ended early'}
+                     </span>
+                   </td>
+                 </tr>
+@@ -411,11 +517,19 @@ export function PatientDetailPage() {
+       {adding ? (
+         <AddExerciseModal
+           library={library}
+-          chosen={new Set(draft.map((i) => i.exercise.id))}
++          chosen={new Set(draft.flatMap((i) => (i.exercise && !i.manual ? [i.exercise.id] : [])))}
+           onAdd={add}
+           onClose={() => setAdding(false)}
+         />
+       ) : null}
++      {editingManual !== null ? (
++        <ManualActivityModal
++          initial={editingManual === 'new' ? null : draft[editingManual]?.manual ?? null}
++          patientFirstName={data.patient.name.split(' ')[0]}
++          onSave={saveManual}
++          onClose={() => setEditingManual(null)}
++        />
++      ) : null}
+     </AppShell>
+   );
+ }
+@@ -505,3 +619,74 @@ function AddExerciseModal({
+     </Modal>
+   );
+ }
++
++/**
++ * Add or edit a manual activity: anything the app can't motion-track (a walk, a stretch with a band,
++ * icing). The patient sees it in Today's Program and just ticks it off.
++ */
++function ManualActivityModal({
++  initial,
++  patientFirstName,
++  onSave,
++  onClose,
++}: {
++  initial: ManualFields | null;
++  patientFirstName: string;
++  onSave: (fields: ManualFields) => void;
++  onClose: () => void;
++}) {
++  const [name, setName] = useState(initial?.name ?? '');
++  const [instructions, setInstructions] = useState(initial?.instructions ?? '');
++
++  function submit(e: React.FormEvent) {
++    e.preventDefault();
++    if (!name.trim()) return;
++    onSave({ name: name.trim(), instructions: instructions.trim() });
++  }
++
++  return (
++    <Modal title={initial ? 'Edit manual activity' : 'Add a manual activity'} onClose={onClose}>
++      <form onSubmit={submit}>
++        <p className="modal-text">
++          For anything the app doesn't track with motion sensors. {patientFirstName} will see it in Today's Program and
++          check it off once it's done.
++        </p>
++        <div className="field">
++          <label htmlFor="manual-name">Activity</label>
++          <input
++            id="manual-name"
++            required
++            autoFocus
++            maxLength={MANUAL_NAME_MAX}
++            placeholder="e.g. Walk for 10 minutes"
++            value={name}
++            onChange={(e) => setName(e.target.value)}
++          />
++        </div>
++        <div className="field">
++          <label htmlFor="manual-instructions">Instructions (optional)</label>
++          <textarea
++            id="manual-instructions"
++            rows={4}
++            maxLength={MANUAL_INSTRUCTIONS_MAX}
++            placeholder="e.g. Green band, 3 sets of 12. Keep your elbows close to your sides."
++            value={instructions}
++            onChange={(e) => setInstructions(e.target.value)}
++          />
++          <div className="field-hint">
++            {instructions.length}/{MANUAL_INSTRUCTIONS_MAX}
++          </div>
++        </div>
++        <div className="modal-actions">
++          <button type="button" className="btn-secondary" onClick={onClose}>
++            Cancel
++          </button>
++          <button className="btn-accent" disabled={!name.trim()}>
++            <Check size={15} />
++            {initial ? 'Update activity' : 'Add activity'}
++          </button>
++        </div>
++      </form>
++    </Modal>
++  );
++}
+diff --git a/backend/README.md b/backend/README.md
+index c51e0ce..6516f4c 100644
+--- a/backend/README.md
++++ b/backend/README.md
+@@ -63,8 +63,19 @@ Run in the Supabase SQL editor, in order:
+ | `GET /patient/schedule?date=YYYY-MM-DD` | patient | Exercises due that day (task 2.2) |
+ | `GET /patient/today?date=YYYY-MM-DD` | patient | Dashboard payload: status, today's exercises with done flags, week strip, streak, adherence %, ROM change, up next (task 2.1) |
+ | `POST /patient/sessions` | patient | Save a finished or ended-early session to `exercise_logs` |
++| `POST /patient/manual/<plan_id>` | patient | `{local_date, done}` — tick / untick a manual activity for that day |
+ | `POST /patient/push-test` | patient | Task 1.7: send a test push to my registered phones |
+ 
++### Manual activities (migration `0008`)
++
++Run `supabase/migrations/0008_manual_activities.sql`. A clinician can add a **manual activity** to a
++patient's program — anything the app can't motion-track ("Walk 10 minutes", "Theraband rows"). It's
++stored as a private `exercises` row (`sensor_mode = 'manual'`, `created_by` = the clinician) that never
++appears in the library, scheduled with a normal `plans` row, and checked off with a normal
++`exercise_logs` row, so streaks and adherence count it like any other exercise. In
++`PUT /therapist/patients/<id>/program`, send it as
++`{"manual": {"name", "instructions"}, "days_of_week": [...]}` (add `"exercise_id"` to keep/edit an existing one).
++
+ `date` is always the **phone's** local date, so "today" follows the patient's time zone. Scheduling
+ rules live in `app/schedule.py` (pure functions, tested in `tests/test_schedule.py` against 3 schedules).
+ 
+diff --git a/backend/app/routes/care.py b/backend/app/routes/care.py
+index f1d1065..66719f5 100644
+--- a/backend/app/routes/care.py
++++ b/backend/app/routes/care.py
+@@ -11,15 +11,21 @@ for other clinics' patients.
+   PUT /therapist/patients/<id>/program              save my program for this patient (replaces it)
+       {"start_date": "YYYY-MM-DD",                  the portal's local "today"; changes apply from then
+        "items": [{"exercise_id", "sets", "reps", "days_of_week": [0..6]}, ...]}   (0 = Sunday)
++      A manual activity (no motion tracking — the patient just checks it off) is an item with
++      {"manual": {"name", "instructions"}, "days_of_week": [...]} plus "exercise_id" when it already
++      exists. sets/reps are ignored for it (stored as 1 × 1).
+ 
+ Saving rules (Flow 6):
+   * an empty program is rejected; each exercise at most once; sets 1–10, reps 1–50; ≥1 day per exercise
+   * plans are matched by exercise: a kept exercise is updated in place, so its history and streak stay
+     attached; a removed one gets end_date = the day before start_date (kept for history, no longer due);
+     a new one starts on start_date
++  * a new manual activity gets its own private exercises row (sensor_mode 'manual', created_by me);
++    an existing one may only be edited while it's one of my current plans for this patient
+   * only MY plans change — another therapist's prescriptions for the same patient are never touched
+   * the patient gets a best-effort push ("Your program was updated")
+ """
++import uuid
+ from datetime import date, timedelta
+ 
+ from flask import Blueprint, current_app, g, jsonify, request
+@@ -27,11 +33,12 @@ from flask import Blueprint, current_app, g, jsonify, request
+ from .. import schedule as sch
+ from ..auth import display_name, require_role
+ from ..notify import send_push
+-from .program import EXERCISE_COLUMNS, _exercise_public, _local_date
++from .program import EXERCISE_COLUMNS, MANUAL, _exercise_public, _local_date, is_manual
+ 
+ bp = Blueprint("care", __name__)
+ 
+ MAX_SETS, MAX_REPS, MAX_ITEMS = 10, 50, 20
++MAX_MANUAL_NAME, MAX_MANUAL_INSTRUCTIONS = 80, 500
+ RECENT_SESSIONS = 15
+ LOG_COLUMNS = (
+     "id, plan_id, exercise_id, local_date, completed, completed_at, reps_completed, sets_completed, "
+@@ -169,6 +176,7 @@ def _program_payload(client, therapist_id: str, patient_id: str, day: date) -> d
+                 "avg_rom_degrees": l.get("avg_rom_degrees"),
+                 "duration_seconds": l.get("duration_seconds"),
+                 "completed": l.get("completed", True),
++                "manual": is_manual(exercises.get(l["exercise_id"])),
+             }
+             for l in recent[:RECENT_SESSIONS]
+         ],
+@@ -182,22 +190,49 @@ def _validate_items(raw) -> tuple[list[dict] | None, str | None]:
+         return None, f"A program can have at most {MAX_ITEMS} exercises."
+     items, seen = [], set()
+     for i, it in enumerate(raw):
+-        if not isinstance(it, dict) or not isinstance(it.get("exercise_id"), str) or not it["exercise_id"]:
++        if not isinstance(it, dict):
+             return None, f"Exercise #{i + 1} is missing."
+-        if it["exercise_id"] in seen:
+-            return None, "Each exercise can only be in the program once."
+-        seen.add(it["exercise_id"])
+-        sets, reps, days = it.get("sets"), it.get("reps"), it.get("days_of_week")
+-        if isinstance(sets, bool) or not isinstance(sets, int) or not 1 <= sets <= MAX_SETS:
+-            return None, f"Sets must be between 1 and {MAX_SETS}."
+-        if isinstance(reps, bool) or not isinstance(reps, int) or not 1 <= reps <= MAX_REPS:
+-            return None, f"Reps must be between 1 and {MAX_REPS}."
++        manual = it.get("manual")
++        ex_id = it.get("exercise_id")
++        if manual is None and (not isinstance(ex_id, str) or not ex_id):
++            return None, f"Exercise #{i + 1} is missing."
++        if ex_id is not None and (not isinstance(ex_id, str) or not ex_id):
++            return None, f"Exercise #{i + 1} is missing."
++        if ex_id:
++            if ex_id in seen:
++                return None, "Each exercise can only be in the program once."
++            seen.add(ex_id)
++        days = it.get("days_of_week")
+         if (
+             not isinstance(days, list) or not days
+             or any(isinstance(d, bool) or not isinstance(d, int) or not 0 <= d <= 6 for d in days)
+         ):
+             return None, "Pick at least one day of the week for every exercise."
+-        items.append({"exercise_id": it["exercise_id"], "sets": sets, "reps": reps, "days_of_week": sorted(set(days))})
++        days = sorted(set(days))
++
++        if manual is not None:
++            if not isinstance(manual, dict):
++                return None, f"Activity #{i + 1} is missing its name."
++            name = manual.get("name")
++            notes = manual.get("instructions") or ""
++            if not isinstance(name, str) or not name.strip():
++                return None, "Give every manual activity a name."
++            if len(name.strip()) > MAX_MANUAL_NAME:
++                return None, f"Activity names can be at most {MAX_MANUAL_NAME} characters."
++            if not isinstance(notes, str) or len(notes.strip()) > MAX_MANUAL_INSTRUCTIONS:
++                return None, f"Activity instructions can be at most {MAX_MANUAL_INSTRUCTIONS} characters."
++            items.append({
++                "exercise_id": ex_id or None, "sets": 1, "reps": 1, "days_of_week": days,
++                "manual": {"name": name.strip(), "instructions": notes.strip()},
++            })
++            continue
++
++        sets, reps = it.get("sets"), it.get("reps")
++        if isinstance(sets, bool) or not isinstance(sets, int) or not 1 <= sets <= MAX_SETS:
++            return None, f"Sets must be between 1 and {MAX_SETS}."
++        if isinstance(reps, bool) or not isinstance(reps, int) or not 1 <= reps <= MAX_REPS:
++            return None, f"Reps must be between 1 and {MAX_REPS}."
++        items.append({"exercise_id": ex_id, "sets": sets, "reps": reps, "days_of_week": days, "manual": None})
+     return items, None
+ 
+ 
+@@ -228,7 +263,10 @@ def roster():
+         p_plans = [p for p in plans if p["patient_id"] == u["id"]]
+         p_logs = [l for l in logs if l.get("patient_id") == u["id"]]
+         mine = [p for p in p_plans if p["therapist_id"] == me and _is_current(p, day)]
+-        areas = sorted({(exercises.get(p["exercise_id"]) or {}).get("body_area") or "" for p in mine} - {""})
++        areas = sorted(
++            {(exercises.get(p["exercise_id"]) or {}).get("body_area") or "" for p in mine if not is_manual(exercises.get(p["exercise_id"]))}
++            - {""}
++        )
+         days = sorted({d for p in mine for d in (p.get("days_of_week") or [])})
+         last = _last_log(p_logs)
+         out.append({
+@@ -272,12 +310,49 @@ def save_program(patient_id):
+     if err:
+         return jsonify(error=err), 400
+ 
+-    found = _exercises_by_id(client, [i["exercise_id"] for i in items])
+-    if any(i["exercise_id"] not in found or found[i["exercise_id"]].get("active") is False for i in items):
+-        return jsonify(error="One of those exercises isn't in the library."), 400
+-
+     plans = client.table("plans").select("*").eq("patient_id", patient_id).eq("therapist_id", me).execute().data or []
+     current = {p["exercise_id"]: p for p in plans if _is_current(p, start)}
++
++    found = _exercises_by_id(client, [i["exercise_id"] for i in items if i["exercise_id"]])
++    for it in items:
++        ex = found.get(it["exercise_id"]) if it["exercise_id"] else None
++        if it["manual"] is None:
++            # library exercise: must exist, be active and not be someone's private manual activity
++            if not ex or ex.get("active") is False or is_manual(ex) or ex.get("created_by"):
++                return jsonify(error="One of those exercises isn't in the library."), 400
++        elif it["exercise_id"] and (not is_manual(ex) or it["exercise_id"] not in current):
++            # editing a manual activity: only one that's already in MY current program for this patient
++            return jsonify(error="That activity isn't part of your program for this patient."), 400
++
++    for it in items:
++        if it["manual"] is None:
++            continue
++        fields = {
++            "name": it["manual"]["name"],
++            "description": it["manual"]["instructions"] or None,
++            "instructions": [it["manual"]["instructions"]] if it["manual"]["instructions"] else [],
++        }
++        if it["exercise_id"]:
++            ex = found[it["exercise_id"]]
++            if (ex.get("name"), ex.get("description")) != (fields["name"], fields["description"]):
++                client.table("exercises").update(fields).eq("id", it["exercise_id"]).execute()
++        else:
++            row = client.table("exercises").insert({
++                **fields,
++                "slug": f"manual-{uuid.uuid4().hex[:12]}",
++                "body_area": "Custom",
++                "sensor_mode": MANUAL,
++                "diagram": "dial",
++                "default_sets": 1,
++                "default_reps": 1,
++                "est_minutes": 5,
++                "equipment": "none",
++                "tags": [],
++                "created_by": me,
++                "active": True,
++            }).execute().data[0]
++            it["exercise_id"] = row["id"]
++
+     wanted = {i["exercise_id"] for i in items}
+ 
+     for order, it in enumerate(items):
+diff --git a/backend/app/routes/program.py b/backend/app/routes/program.py
+index 640e45c..a4a9e53 100644
+--- a/backend/app/routes/program.py
++++ b/backend/app/routes/program.py
+@@ -10,6 +10,8 @@ Patient (iPhone app):
+                                       the PHONE's local date; the server falls back to its own UTC date.
+   GET  /patient/schedule?date=…       just the exercises due that day (task 2.2's contract)
+   POST /patient/sessions              save a finished (or ended-early) session to exercise_logs
++  POST /patient/manual/<plan_id>      check off (or un-check) a manual activity for a day
++      {"local_date": "YYYY-MM-DD", "done": true|false}
+   POST /patient/push-test             task 1.7: send a test push to my registered devices
+ """
+ from datetime import date, datetime, timedelta, timezone
+@@ -25,8 +27,9 @@ bp = Blueprint("program", __name__)
+ EXERCISE_COLUMNS = (
+     "id, slug, name, body_area, description, instructions, positioning_tip, sensor_mode, diagram, "
+     "default_sets, default_reps, target_angle_deg, return_angle_deg, target_rotation_deg, est_minutes, "
+-    "difficulty, equipment, tags, accent_color, active"
++    "difficulty, equipment, tags, accent_color, active, created_by"
+ )
++MANUAL = "manual"  # sensor_mode of a clinician-written activity the patient just checks off
+ MAX_SESSION_SECONDS = 4 * 60 * 60
+ 
+ 
+@@ -41,11 +44,17 @@ def _local_date(raw) -> date | None:
+ 
+ 
+ def _exercise_public(ex: dict) -> dict:
+-    return {k: ex.get(k) for k in [c.strip() for c in EXERCISE_COLUMNS.split(",")] if k != "active"}
++    return {k: ex.get(k) for k in [c.strip() for c in EXERCISE_COLUMNS.split(",")] if k not in ("active", "created_by")}
++
++
++def is_manual(ex: dict | None) -> bool:
++    return bool(ex) and ex.get("sensor_mode") == MANUAL
+ 
+ 
+ def _search_library(client, body_area: str | None, q: str | None) -> list[dict]:
+     rows = client.table("exercises").select(EXERCISE_COLUMNS).eq("active", True).execute().data or []
++    # Manual activities a clinician wrote for one patient are never part of the shared library.
++    rows = [r for r in rows if not r.get("created_by") and not is_manual(r)]
+     if body_area:
+         rows = [r for r in rows if (r.get("body_area") or "").lower() == body_area.strip().lower()]
+     if q:
+@@ -238,6 +247,47 @@ def save_session():
+     return jsonify(session={"id": saved["id"], "local_date": row["local_date"], "completed": row["completed"]}), 201
+ 
+ 
++@bp.post("/patient/manual/<plan_id>")
++@require_role("patient")
++def check_manual(plan_id):
++    """Tick (done=true) or untick (done=false) a manual activity for the phone's local day."""
++    body = request.get_json(silent=True) or {}
++    uid = g.profile["id"]
++    day = _local_date(body.get("local_date"))
++    if day is None:
++        return jsonify(error="local_date must be YYYY-MM-DD"), 400
++    done = body.get("done", True)
++    if not isinstance(done, bool):
++        return jsonify(error="done must be true or false"), 400
++
++    rows = g.client.table("plans").select("id, patient_id, exercise_id").eq("id", plan_id).limit(1).execute().data
++    if not rows or rows[0]["patient_id"] != uid:
++        return jsonify(error="That activity isn't part of your program."), 404
++    plan = rows[0]
++    ex = (g.client.table("exercises").select("id, sensor_mode").eq("id", plan["exercise_id"]).limit(1).execute().data or [None])[0]
++    if not is_manual(ex):
++        return jsonify(error="This exercise is tracked with motion sensors. Start it from Today's Program."), 400
++
++    existing = (
++        g.client.table("exercise_logs").select("id")
++        .eq("patient_id", uid).eq("plan_id", plan_id).eq("local_date", day.isoformat())
++        .execute().data
++        or []
++    )
++    if done and not existing:
++        g.client.table("exercise_logs").insert({
++            "patient_id": uid,
++            "plan_id": plan_id,
++            "exercise_id": plan["exercise_id"],
++            "local_date": day.isoformat(),
++            "completed": True,
++            "summary": {"manual": True},
++        }).execute()
++    elif not done and existing:
++        g.client.table("exercise_logs").delete().in_("id", [r["id"] for r in existing]).execute()
++    return jsonify(plan_id=plan_id, local_date=day.isoformat(), done=done)
++
++
+ # ---------- task 1.7: test push ----------
+ @bp.post("/patient/push-test")
+ @require_role("patient")
+diff --git a/backend/supabase/migrations/0008_manual_activities.sql b/backend/supabase/migrations/0008_manual_activities.sql
+new file mode 100644
+index 0000000..782ff82
+--- /dev/null
++++ b/backend/supabase/migrations/0008_manual_activities.sql
+@@ -0,0 +1,37 @@
++-- Manual activities: a custom item a clinician prescribes that the app doesn't motion-track.
++-- The patient just checks it off (e.g. "Walk 10 minutes", "Theraband rows — green band").
++--
++--  * A manual activity is an exercises row with sensor_mode = 'manual' and created_by = the clinician
++--    who wrote it. It is private to the patient it was prescribed for: it never shows in the library
++--    (the API filters on created_by is null), and RLS only lets the author / the patient's plan
++--    holders read it.
++--  * It is scheduled with a normal plans row (sets = reps = 1), so streaks, adherence, "today",
++--    the week strip and transfers all work unchanged.
++--  * Checking it off writes a normal exercise_logs row (completed = true, summary.manual = true).
++--    Unchecking deletes that day's row.
++
++alter table public.exercises
++  add column if not exists created_by uuid references public.users (id) on delete set null;
++
++alter table public.exercises drop constraint if exists exercises_sensor_mode_chk;
++alter table public.exercises add constraint exercises_sensor_mode_chk
++  check (sensor_mode in ('tilt', 'rotation', 'manual'));
++
++-- A clinician-authored row must be a manual activity (library rows keep created_by null).
++alter table public.exercises drop constraint if exists exercises_custom_manual_chk;
++alter table public.exercises add constraint exercises_custom_manual_chk
++  check (created_by is null or sensor_mode = 'manual');
++
++create index if not exists exercises_created_by_idx on public.exercises (created_by) where created_by is not null;
++
++-- Library rows stay readable by everyone signed in; custom rows only by their author or by anyone
++-- who can see a plan that uses them (the patient, and that patient's linked therapists).
++drop policy if exists exercises_select on public.exercises;
++create policy exercises_select on public.exercises for select to authenticated using (
++  created_by is null
++  or created_by = auth.uid()
++  or exists (select 1 from public.plans p where p.exercise_id = exercises.id)
++);
++
++-- The backend (service role) deletes a manual check-off when the patient unticks it. No client policy
++-- is needed for that; this comment is here so nobody adds a broad delete policy by accident.
+diff --git a/backend/tests/fakes.py b/backend/tests/fakes.py
+index 1aa7335..cc4ddb8 100644
+--- a/backend/tests/fakes.py
++++ b/backend/tests/fakes.py
+@@ -1,5 +1,5 @@
+ """Tiny in-memory stand-in for the supabase-py client: just enough chainable query API
+-(select/insert/update/upsert/eq/ilike/order/limit/execute, rpc, auth.get_user) for route tests."""
++(select/insert/update/upsert/delete/eq/ilike/order/limit/execute, rpc, auth.get_user) for route tests."""
+ import itertools
+ import uuid
+ from types import SimpleNamespace
+@@ -15,6 +15,7 @@ class Query:
+     def select(self, *_a, **_k): return self
+     def insert(self, row): self.op, self.payload = "insert", row; return self
+     def update(self, row): self.op, self.payload = "update", row; return self
++    def delete(self): self.op = "delete"; return self
+     def upsert(self, row, on_conflict=None): self.op, self.payload, self._on_conflict = "upsert", row, on_conflict; return self
+     def eq(self, col, val): self.filters.append(("eq", col, val)); return self
+     def ilike(self, col, val): self.filters.append(("ilike", col, val)); return self
+@@ -58,6 +59,9 @@ class Query:
+             rows.append({"id": str(uuid.uuid4()), **self.payload})
+             return SimpleNamespace(data=[dict(rows[-1])])
+         matched = [r for r in rows if self._match(r)]
++        if self.op == "delete":
++            self.db.tables[self.name] = [r for r in rows if not self._match(r)]
++            return SimpleNamespace(data=[dict(r) for r in matched])
+         if self.op == "update":
+             for r in matched:
+                 r.update(self.payload)
+diff --git a/backend/tests/test_care.py b/backend/tests/test_care.py
+index d21d39f..2940630 100644
+--- a/backend/tests/test_care.py
++++ b/backend/tests/test_care.py
+@@ -170,3 +170,88 @@ def test_roster_summary(env):
+     other = env.client.get(f"/therapist/patients?date={TODAY}", headers=env.t2).get_json()["patients"][0]
+     assert other["program"]["exercise_count"] == 0
+     assert env.client.get("/therapist/patients", headers=env.p1).status_code == 403
++
++
++# ---------- manual activities (custom, check-off only) ----------
++def manual(name, days, instructions="", exercise_id=None):
++    item = {"manual": {"name": name, "instructions": instructions}, "days_of_week": days}
++    if exercise_id:
++        item["exercise_id"] = exercise_id
++    return item
++
++
++def test_manual_activity_is_private_and_checked_off(env):
++    body = program(("shoulder-flexion", 2, 8, [3]))
++    body["items"].append(manual("Walk 10 minutes", [1, 3, 5], "Easy pace, flat ground."))
++    r = env.client.put("/therapist/patients/p1/program", json=body, headers=env.t1)
++    assert r.status_code == 200, r.get_json()
++    prog = r.get_json()["program"]
++    walk = prog[1]
++    assert walk["exercise"]["sensor_mode"] == "manual" and walk["exercise"]["name"] == "Walk 10 minutes"
++    assert walk["exercise"]["description"] == "Easy pace, flat ground."
++    assert (walk["sets"], walk["reps"]) == (1, 1)
++    assert "created_by" not in walk["exercise"]
++    row = next(e for e in env.db.tables["exercises"] if e["id"] == walk["exercise"]["id"])
++    assert row["created_by"] == "t1" and row["slug"].startswith("manual-")
++
++    # never shows up in the shared library, for anyone
++    lib = env.client.get("/therapist/exercises", headers=env.t1).get_json()
++    assert lib["count"] == 20 and "Walk 10 minutes" not in [e["name"] for e in lib["exercises"]]
++
++    # roster doesn't list "Custom" as a body area
++    p = env.client.get(f"/therapist/patients?date={TODAY}", headers=env.t1).get_json()["patients"][0]
++    assert p["program"]["body_areas"] == ["Shoulder"] and p["program"]["exercise_count"] == 2
++
++    # the patient sees it in today's program and checks it off
++    today = env.client.get(f"/patient/today?date={TODAY}", headers=env.p1).get_json()
++    item = next(i for i in today["exercises"] if i["exercise"]["sensor_mode"] == "manual")
++    assert not item["done"]
++    url = f"/patient/manual/{item['plan_id']}"
++    assert env.client.post(url, json={"local_date": TODAY, "done": True}, headers=env.p1).status_code == 200
++    assert env.client.post(url, json={"local_date": TODAY, "done": True}, headers=env.p1).status_code == 200  # idempotent
++    logs = [l for l in env.db.tables["exercise_logs"] if l["plan_id"] == item["plan_id"]]
++    assert len(logs) == 1 and logs[0]["completed"] and logs[0]["summary"] == {"manual": True}
++    today = env.client.get(f"/patient/today?date={TODAY}", headers=env.p1).get_json()
++    assert next(i for i in today["exercises"] if i["plan_id"] == item["plan_id"])["done"]
++
++    # the clinician sees it as a checked-off session
++    detail = env.client.get(f"/therapist/patients/p1/program?date={TODAY}", headers=env.t1).get_json()
++    assert detail["recent_sessions"][0]["manual"] is True
++    assert detail["recent_sessions"][0]["exercise_name"] == "Walk 10 minutes"
++
++    # untick
++    assert env.client.post(url, json={"local_date": TODAY, "done": False}, headers=env.p1).get_json()["done"] is False
++    assert not [l for l in env.db.tables["exercise_logs"] if l["plan_id"] == item["plan_id"]]
++
++    # a tracked exercise can't be ticked off; another patient can't tick this one
++    tracked = next(i for i in today["exercises"] if i["exercise"]["sensor_mode"] != "manual")
++    assert env.client.post(f"/patient/manual/{tracked['plan_id']}", json={"local_date": TODAY}, headers=env.p1).status_code == 400
++    assert env.client.post(url, json={"local_date": TODAY}, headers=env.p2).status_code == 404
++    assert env.client.post(url, json={"local_date": TODAY, "done": "yes"}, headers=env.p1).status_code == 400
++
++
++def test_editing_a_manual_activity_keeps_its_plan(env):
++    body = {"start_date": TODAY, "items": [manual("Theraband rows", [3])]}
++    walk = env.client.put("/therapist/patients/p1/program", json=body, headers=env.t1).get_json()["program"][0]
++    ex_id, plan_id = walk["exercise"]["id"], walk["plan_id"]
++
++    body = {"start_date": TODAY, "items": [manual("Theraband rows — green band", [1, 3], "3 sets of 12", ex_id)]}
++    edited = env.client.put("/therapist/patients/p1/program", json=body, headers=env.t1).get_json()["program"][0]
++    assert edited["plan_id"] == plan_id and edited["exercise"]["id"] == ex_id
++    assert edited["exercise"]["name"] == "Theraband rows — green band" and edited["days_of_week"] == [1, 3]
++    assert len([e for e in env.db.tables["exercises"] if e.get("created_by")]) == 1
++
++
++def test_manual_activity_validation_and_ownership(env):
++    put = lambda items, h=env.t1: env.client.put("/therapist/patients/p1/program", json={"start_date": TODAY, "items": items}, headers=h)
++    assert put([manual("", [3])]).status_code == 400
++    assert put([manual("x" * 81, [3])]).status_code == 400
++    assert put([manual("Walk", [3], "x" * 501)]).status_code == 400
++    assert put([manual("Walk", [])]).status_code == 400
++    assert put([{"manual": "Walk", "days_of_week": [3]}]).status_code == 400
++
++    ex_id = put([manual("Walk", [3])]).get_json()["program"][0]["exercise"]["id"]
++    # t2 can't edit t1's activity, or prescribe it as a "library" exercise
++    assert put([manual("Hijack", [3], exercise_id=ex_id)], env.t2).status_code == 400
++    assert put([{"exercise_id": ex_id, "sets": 1, "reps": 1, "days_of_week": [3]}], env.t2).status_code == 400
++    assert next(e for e in env.db.tables["exercises"] if e["id"] == ex_id)["name"] == "Walk"
+diff --git a/docs/demo-checklist.md b/docs/demo-checklist.md
+index face371..1330166 100644
+--- a/docs/demo-checklist.md
++++ b/docs/demo-checklist.md
+@@ -243,7 +243,7 @@ Press Ctrl+C in each terminal. Next time, run only the **Every time** commands.
+ 
+ ## The day before
+ 
+-- [ ] **Database:** migrations `0001`–`0007` have been run in the Supabase SQL Editor (the program editor needs no
++- [ ] **Database:** migrations `0001`–`0008` have been run in the Supabase SQL Editor (the program editor needs no
+       new migration). `backend/supabase/tests_rls.sql` should return every row `passed = true`.
+ - [ ] **Backend:** redeploy on Render so the new `/therapist/patients…` endpoints exist. Check
+       `https://<backend>/health` says `"supabase": "connected"`.
+diff --git a/package-lock.json b/package-lock.json
+index 5873505..9f27c9f 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -21,6 +21,7 @@
+         "expo-sensors": "~57.0.2",
+         "expo-speech": "~57.0.2",
+         "expo-status-bar": "~57.0.1",
++        "lucide-react-native": "^1.72.0",
+         "react": "19.2.3",
+         "react-native": "0.86.3",
+         "react-native-safe-area-context": "~5.7.0",
+@@ -4568,6 +4569,23 @@
+         "yallist": "^3.0.2"
+       }
+     },
++    "node_modules/lucide-react-native": {
++      "version": "1.72.0",
++      "resolved": "https://registry.npmjs.org/lucide-react-native/-/lucide-react-native-1.72.0.tgz",
++      "integrity": "sha512-fa2hf61ytmHttppA90jATO96bzN2+5RKkvdmXKXyNM5FDkNjCQObs4WyAXFXzFzJRagrS8YBah8N9y9RVlDykA==",
++      "license": "ISC",
++      "peerDependencies": {
++        "@types/react": "*",
++        "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0",
++        "react-native": "*",
++        "react-native-svg": "^12.0.0 || ^13.0.0 || ^14.0.0 || ^15.0.0"
++      },
++      "peerDependenciesMeta": {
++        "@types/react": {
++          "optional": true
++        }
++      }
++    },
+     "node_modules/makeerror": {
+       "version": "1.0.12",
+       "resolved": "https://registry.npmjs.org/makeerror/-/makeerror-1.0.12.tgz",
+diff --git a/package.json b/package.json
+index 581113f..a12dfdf 100644
+--- a/package.json
++++ b/package.json
+@@ -16,6 +16,7 @@
+     "expo-sensors": "~57.0.2",
+     "expo-speech": "~57.0.2",
+     "expo-status-bar": "~57.0.1",
++    "lucide-react-native": "^1.72.0",
+     "react": "19.2.3",
+     "react-native": "0.86.3",
+     "react-native-safe-area-context": "~5.7.0",
+diff --git a/src/components/BigButton.tsx b/src/components/BigButton.tsx
+index e45e3d5..6418854 100644
+--- a/src/components/BigButton.tsx
++++ b/src/components/BigButton.tsx
+@@ -1,5 +1,6 @@
+ import React from 'react';
+ import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
++import type { LucideIcon } from 'lucide-react-native';
+ import { colors, minTouchTarget, radii, spacing, type } from '../theme/theme';
+ 
+ type Variant = 'primary' | 'secondary' | 'outline';
+@@ -15,6 +16,10 @@ interface Props {
+   subLabel?: string;
+   /** Override the computed text color — useful for outline buttons on a colored background. */
+   textColor?: string;
++  /** Lucide icon shown before the label (decorative — the label is still read by VoiceOver). */
++  icon?: LucideIcon;
++  /** Fill the icon's shape too (good for solid Play / Pause glyphs). */
++  iconFilled?: boolean;
+ }
+ 
+ export function BigButton({
+@@ -26,6 +31,8 @@ export function BigButton({
+   style,
+   subLabel,
+   textColor: textColorOverride,
++  icon: Icon,
++  iconFilled = false,
+ }: Props) {
+   const bg = disabled
+     ? colors.disabled
+@@ -53,7 +60,10 @@ export function BigButton({
+       ]}
+     >
+       <View>
+-        <Text style={[styles.label, { color: textColor }]}>{label}</Text>
++        <View style={styles.labelRow}>
++          {Icon ? <Icon size={24} color={textColor} strokeWidth={2.5} fill={iconFilled ? textColor : 'none'} accessible={false} /> : null}
++          <Text style={[styles.label, { color: textColor }]}>{label}</Text>
++        </View>
+         {subLabel ? <Text style={[styles.subLabel, { color: textColor }]}>{subLabel}</Text> : null}
+       </View>
+     </Pressable>
+@@ -73,6 +83,7 @@ const styles = StyleSheet.create({
+   outlineBorder: {
+     borderWidth: 3,
+   },
++  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
+   label: {
+     ...type.button,
+     textAlign: 'center',
+diff --git a/src/lib/api.ts b/src/lib/api.ts
+index 9a98277..86dfb98 100644
+--- a/src/lib/api.ts
++++ b/src/lib/api.ts
+@@ -70,10 +70,14 @@ export interface LibraryExercise {
+   name: string;
+   body_area: string;
+   description: string | null;
++  /** 'manual' = a custom activity from the care team that the patient just checks off (no motion tracking). */
++  sensor_mode: 'tilt' | 'rotation' | 'manual';
+   est_minutes: number | null;
+   accent_color: string | null;
+ }
+ 
++export const isManual = (item: { exercise: Pick<LibraryExercise, 'sensor_mode'> }) => item.exercise.sensor_mode === 'manual';
++
+ export interface TodayItem {
+   plan_id: string;
+   sets: number;
+@@ -131,6 +135,13 @@ export interface SessionUpload {
+   summary: Record<string, unknown>;
+ }
+ 
++/** Tick (done = true) or untick a manual activity for today. */
++export const checkManualActivity = (planId: string, done: boolean) =>
++  authed<{ plan_id: string; local_date: string; done: boolean }>(`/patient/manual/${planId}`, {
++    method: 'POST',
++    body: JSON.stringify({ local_date: localDateString(), done }),
++  });
++
+ export const saveSession = (body: SessionUpload) =>
+   authed<{ session: { id: string; local_date: string; completed: boolean } }>('/patient/sessions', {
+     method: 'POST',
+diff --git a/src/screens/CompleteScreen.tsx b/src/screens/CompleteScreen.tsx
+index 069b76b..d8266d9 100644
+--- a/src/screens/CompleteScreen.tsx
++++ b/src/screens/CompleteScreen.tsx
+@@ -2,11 +2,12 @@ import React, { useCallback, useEffect, useState } from 'react';
+ import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+ import { SafeAreaView } from 'react-native-safe-area-context';
+ import Svg, { Circle, Path } from 'react-native-svg';
++import { Check } from 'lucide-react-native';
+ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+ import { RootStackParamList } from '../navigation/types';
+ import { getExerciseById } from '../data/exercises';
+ import { BigButton } from '../components/BigButton';
+-import { getToday, localDateString, saveSession } from '../lib/api';
++import { getToday, isManual, localDateString, saveSession } from '../lib/api';
+ import type { TodayItem } from '../lib/api';
+ import { colors, radii, spacing, type } from '../theme/theme';
+ 
+@@ -71,7 +72,8 @@ export function CompleteScreen({ route, navigation }: Props) {
+     }
+     setSaveState('saved');
+     const today = await getToday();
+-    setNext(today.data?.exercises.find((e) => !e.done) ?? null);
++    // Manual activities are ticked off on the Today screen, so "Next" only offers tracked exercises.
++    setNext(today.data?.exercises.find((e) => !e.done && !isManual(e)) ?? null);
+   }, [planId, summary]);
+ 
+   useEffect(() => {
+@@ -110,7 +112,12 @@ export function CompleteScreen({ route, navigation }: Props) {
+                 <Text style={styles.caption}>Saving to your record…</Text>
+               </>
+             )}
+-            {saveState === 'saved' && <Text style={[styles.caption, { color: colors.motionSuccess }]}>✓ Saved. Your care team can see this session.</Text>}
++            {saveState === 'saved' && (
++              <>
++                <Check size={20} color={colors.motionSuccess} strokeWidth={3} accessible={false} />
++                <Text style={[styles.caption, { color: colors.motionSuccess }]}>Saved. Your care team can see this session.</Text>
++              </>
++            )}
+             {saveState === 'failed' && <Text style={[styles.caption, { color: colors.danger }]}>Not saved: {saveError}</Text>}
+           </View>
+         ) : (
+diff --git a/src/screens/DashboardScreen.tsx b/src/screens/DashboardScreen.tsx
+index 5a932d5..bdaf151 100644
+--- a/src/screens/DashboardScreen.tsx
++++ b/src/screens/DashboardScreen.tsx
+@@ -2,13 +2,15 @@ import React, { useCallback, useEffect, useState } from 'react';
+ import { ActivityIndicator, Alert, AppState, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+ import { SafeAreaView } from 'react-native-safe-area-context';
+ import { useFocusEffect } from '@react-navigation/native';
++import { Bell, Check, ChevronRight, PartyPopper, Play, Target, TrendingUp, X, Zap } from 'lucide-react-native';
++import type { LucideIcon } from 'lucide-react-native';
+ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+ import { RootStackParamList } from '../navigation/types';
+ import { useAuth } from '../auth/AuthContext';
+ import { BigButton } from '../components/BigButton';
+ import { CheckConnectionLink } from '../components/CheckConnectionLink';
+ import { supabase } from '../lib/supabase';
+-import { getMyInvitations, getToday } from '../lib/api';
++import { checkManualActivity, getMyInvitations, getToday, isManual } from '../lib/api';
+ import type { TodayItem, TodayResponse, WeekDay } from '../lib/api';
+ import { colors, radii, spacing, type } from '../theme/theme';
+ 
+@@ -99,6 +101,23 @@ export function DashboardScreen({ navigation }: Props) {
+   const startItem = (item: TodayItem) =>
+     navigation.navigate('Exercise', { exerciseId: item.exercise.slug, planId: item.plan_id, sets: item.sets, reps: item.reps });
+ 
++  // Manual activities (custom items from the care team) aren't motion-tracked: tapping just ticks them
++  // off for today. The row flips right away, then we re-load so the streak / week strip catch up.
++  const [toggling, setToggling] = useState<string | null>(null);
++  const toggleManual = async (item: TodayItem) => {
++    if (toggling) return;
++    const done = !item.done;
++    setToggling(item.plan_id);
++    setToday((t) => t && { ...t, exercises: t.exercises.map((e) => (e.plan_id === item.plan_id ? { ...e, done } : e)) });
++    const { error: e } = await checkManualActivity(item.plan_id, done);
++    if (e) {
++      setToday((t) => t && { ...t, exercises: t.exercises.map((x) => (x.plan_id === item.plan_id ? { ...x, done: !done } : x)) });
++      Alert.alert("Couldn't save that", e);
++    }
++    await load();
++    setToggling(null);
++  };
++
+   const openProfile = () =>
+     Alert.alert(firstName ?? 'Your account', session?.user.email ?? undefined, [
+       { text: 'Connect with a doctor', onPress: () => navigation.navigate('Connect') },
+@@ -127,7 +146,7 @@ export function DashboardScreen({ navigation }: Props) {
+             onPress={() => navigation.navigate('Connect')}
+             style={styles.iconButton}
+           >
+-            <Text style={styles.bell}>🔔</Text>
++            <Bell size={28} color={colors.textPrimary} strokeWidth={2.25} accessible={false} />
+             {pendingCount > 0 && <View style={styles.badge}><Text style={styles.badgeText}>{pendingCount}</Text></View>}
+           </Pressable>
+           <Pressable accessibilityRole="button" accessibilityLabel="Account menu" onPress={openProfile} style={styles.avatar}>
+@@ -160,16 +179,23 @@ export function DashboardScreen({ navigation }: Props) {
+         ) : today ? (
+           <>
+             {today.status !== 'no_program' && <StreakCard today={today} />}
+-            <ProgramCard today={today} doctors={doctors} remaining={remaining} onStart={startItem} />
++            <ProgramCard
++              today={today}
++              doctors={doctors}
++              remaining={remaining}
++              onStart={startItem}
++              onToggleManual={toggleManual}
++              toggling={toggling}
++            />
+             {today.status !== 'no_program' && (
+               <View style={styles.statsRow}>
+                 <StatTile
+-                  icon="📈"
++                  icon={TrendingUp}
+                   value={today.stats.adherence_pct === null ? '—' : `${today.stats.adherence_pct}%`}
+                   label="Adherence (30 days)"
+                 />
+                 <StatTile
+-                  icon="🎯"
++                  icon={Target}
+                   value={
+                     today.stats.rom_change_deg === null
+                       ? '—'
+@@ -186,9 +212,7 @@ export function DashboardScreen({ navigation }: Props) {
+                   <View key={e.plan_id} style={styles.upNextRow}>
+                     <View style={[styles.dot, { backgroundColor: e.exercise.accent_color ?? colors.primary }]} />
+                     <Text style={styles.rowTitle}>{e.exercise.name}</Text>
+-                    <Text style={styles.muted}>
+-                      {e.sets} × {e.reps}
+-                    </Text>
++                    <Text style={styles.muted}>{isManual(e) ? 'Check off' : `${e.sets} × ${e.reps}`}</Text>
+                   </View>
+                 ))}
+               </>
+@@ -214,7 +238,10 @@ function StreakCard({ today }: { today: TodayResponse }) {
+   return (
+     <View style={styles.card}>
+       <View style={styles.streakHeader}>
+-        <Text style={styles.cardTitle}>⚡ {today.streak}-day streak</Text>
++        <View style={styles.iconTitle}>
++          <Zap size={26} color={colors.action} fill={colors.action} accessible={false} />
++          <Text style={styles.cardTitle}>{today.streak}-day streak</Text>
++        </View>
+         <Text style={styles.muted}>This week</Text>
+       </View>
+       <View style={styles.weekRow}>
+@@ -242,11 +269,16 @@ const DOT_STYLE: Record<WeekDay['state'], { bg: string; fg: string; border?: str
+ 
+ function WeekDot({ day, letter }: { day: WeekDay; letter: string }) {
+   const s = DOT_STYLE[day.state];
+-  const glyph = day.state === 'done' ? '✓' : day.state === 'missed' ? '✕' : letter;
+   return (
+     <View style={styles.weekCol} accessible accessibilityLabel={`${day.date}: ${s.label}`}>
+       <View style={[styles.weekDot, { backgroundColor: s.bg, borderColor: s.border ?? s.bg }]}>
+-        <Text style={[styles.weekGlyph, { color: s.fg }]}>{glyph}</Text>
++        {day.state === 'done' ? (
++          <Check size={22} color={s.fg} strokeWidth={3.5} accessible={false} />
++        ) : day.state === 'missed' ? (
++          <X size={22} color={s.fg} strokeWidth={3.5} accessible={false} />
++        ) : (
++          <Text style={[styles.weekGlyph, { color: s.fg }]}>{letter}</Text>
++        )}
+       </View>
+       <Text style={styles.weekLetter}>{letter}</Text>
+     </View>
+@@ -258,11 +290,15 @@ function ProgramCard({
+   doctors,
+   remaining,
+   onStart,
++  onToggleManual,
++  toggling,
+ }: {
+   today: TodayResponse;
+   doctors: Doctor[];
+   remaining: TodayItem[];
+   onStart: (i: TodayItem) => void;
++  onToggleManual: (i: TodayItem) => void;
++  toggling: string | null;
+ }) {
+   if (today.status === 'no_program') {
+     return (
+@@ -298,53 +334,115 @@ function ProgramCard({
+   }
+ 
+   const done = today.status === 'complete';
++  // "Start" walks through motion-tracked exercises only; manual activities are ticked off in the list.
++  const nextTracked = remaining.find((i) => !isManual(i));
+   return (
+     <>
+       <Text style={styles.sectionTitle}>Today&apos;s Program</Text>
+       <View style={[styles.card, !done && styles.programCard]}>
+-        <Text style={styles.cardTitle}>{done ? "Today's session complete 🎉" : `${remaining.length} of ${today.exercises.length} left`}</Text>
++        <View style={styles.iconTitle}>
++          {done && <PartyPopper size={26} color={colors.celebrate} accessible={false} />}
++          <Text style={styles.cardTitle}>{done ? "Today's session complete" : `${remaining.length} of ${today.exercises.length} left`}</Text>
++        </View>
+         {!done && <Text style={styles.muted}>About {today.remaining_minutes} minutes</Text>}
+         <View style={{ marginTop: spacing.sm }}>
+-          {today.exercises.map((item) => (
+-            <Pressable
+-              key={item.plan_id}
+-              accessibilityRole="button"
+-              accessibilityLabel={`${item.exercise.name}, ${item.sets} ${item.sets === 1 ? 'set' : 'sets'} of ${item.reps}. ${item.done ? 'Done.' : 'Not done yet.'}`}
+-              onPress={() => onStart(item)}
+-              style={({ pressed }) => [styles.exerciseRow, pressed && { opacity: 0.7 }]}
+-            >
+-              <View style={[styles.check, item.done ? styles.checkDone : { borderColor: item.exercise.accent_color ?? colors.border }]}>
+-                {item.done && <Text style={styles.checkMark}>✓</Text>}
+-              </View>
+-              <View style={{ flex: 1 }}>
+-                <Text style={[styles.rowTitle, item.done && styles.rowDone]}>{item.exercise.name}</Text>
+-                <Text style={styles.muted}>
+-                  {item.sets === 1 ? `${item.reps} reps` : `${item.sets} sets × ${item.reps} reps`}{item.attempted && !item.done ? ' · started' : ''}
+-                  {doctors.length > 1 ? ` · ${item.therapist_name}` : ''}
+-                </Text>
+-              </View>
+-              <Text style={styles.chevron}>›</Text>
+-            </Pressable>
+-          ))}
++          {today.exercises.map((item) =>
++            isManual(item) ? (
++              <ManualRow
++                key={item.plan_id}
++                item={item}
++                busy={toggling === item.plan_id}
++                showDoctor={doctors.length > 1}
++                onToggle={() => onToggleManual(item)}
++              />
++            ) : (
++              <Pressable
++                key={item.plan_id}
++                accessibilityRole="button"
++                accessibilityLabel={`${item.exercise.name}, ${item.sets} ${item.sets === 1 ? 'set' : 'sets'} of ${item.reps}. ${item.done ? 'Done.' : 'Not done yet.'}`}
++                onPress={() => onStart(item)}
++                style={({ pressed }) => [styles.exerciseRow, pressed && { opacity: 0.7 }]}
++              >
++                <View style={[styles.check, item.done ? styles.checkDone : { borderColor: item.exercise.accent_color ?? colors.border }]}>
++                  {item.done && <Check size={20} color={colors.textOnDark} strokeWidth={3.5} accessible={false} />}
++                </View>
++                <View style={{ flex: 1 }}>
++                  <Text style={[styles.rowTitle, item.done && styles.rowDone]}>{item.exercise.name}</Text>
++                  <Text style={styles.muted}>
++                    {item.sets === 1 ? `${item.reps} reps` : `${item.sets} sets × ${item.reps} reps`}{item.attempted && !item.done ? ' · started' : ''}
++                    {doctors.length > 1 ? ` · ${item.therapist_name}` : ''}
++                  </Text>
++                </View>
++                <ChevronRight size={30} color={colors.textSecondary} accessible={false} />
++              </Pressable>
++            ),
++          )}
+         </View>
+-        {!done && remaining.length > 0 && (
++        {!done && nextTracked && (
+           <View style={{ marginTop: spacing.md }}>
+             <BigButton
+-              label={remaining.length === today.exercises.length ? "▶  Start Today's Session" : '▶  Continue Session'}
++              label={remaining.length === today.exercises.length ? "Start Today's Session" : 'Continue Session'}
++              icon={Play}
++              iconFilled
+               accentColor={colors.action}
+-              onPress={() => onStart(remaining[0])}
++              onPress={() => onStart(nextTracked)}
+             />
+           </View>
+         )}
++        {!done && !nextTracked && remaining.length > 0 && (
++          <Text style={[styles.muted, { marginTop: spacing.sm }]}>Tap each activity above once you&apos;ve done it.</Text>
++        )}
+       </View>
+     </>
+   );
+ }
+ 
+-function StatTile({ icon, value, label }: { icon: string; value: string; label: string }) {
++/** A custom activity from the care team: no motion tracking, the patient just checks it off. */
++function ManualRow({
++  item,
++  busy,
++  showDoctor,
++  onToggle,
++}: {
++  item: TodayItem;
++  busy: boolean;
++  showDoctor: boolean;
++  onToggle: () => void;
++}) {
++  const notes = item.exercise.description?.trim();
++  return (
++    <Pressable
++      accessibilityRole="checkbox"
++      accessibilityState={{ checked: item.done, busy }}
++      accessibilityLabel={`${item.exercise.name}. ${notes ? `${notes}. ` : ''}Activity from your care team.`}
++      accessibilityHint={item.done ? 'Double tap to mark as not done.' : 'Double tap to check it off.'}
++      onPress={onToggle}
++      disabled={busy}
++      style={({ pressed }) => [styles.exerciseRow, pressed && { opacity: 0.7 }]}
++    >
++      <View style={[styles.check, styles.manualCheck, item.done && styles.checkDone]}>
++        {busy ? (
++          <ActivityIndicator size="small" color={item.done ? colors.textOnDark : colors.primary} />
++        ) : item.done ? (
++          <Check size={20} color={colors.textOnDark} strokeWidth={3.5} accessible={false} />
++        ) : null}
++      </View>
++      <View style={{ flex: 1, paddingVertical: spacing.xs }}>
++        <Text style={[styles.rowTitle, item.done && styles.rowDone]}>{item.exercise.name}</Text>
++        {notes ? <Text style={styles.muted}>{notes}</Text> : null}
++        <Text style={styles.muted}>
++          {item.done ? 'Done — tap to undo' : 'Tap to check off'}
++          {showDoctor ? ` · ${item.therapist_name}` : ''}
++        </Text>
++      </View>
++    </Pressable>
++  );
++}
++
++function StatTile({ icon: Icon, value, label }: { icon: LucideIcon; value: string; label: string }) {
+   return (
+     <View style={[styles.card, styles.statTile]} accessible accessibilityLabel={`${label}: ${value === '—' ? 'not enough data yet' : value}`}>
+-      <Text style={{ fontSize: 26 }}>{icon}</Text>
++      <Icon size={28} color={colors.primary} strokeWidth={2.25} accessible={false} />
+       <Text style={styles.statValue}>{value}</Text>
+       <Text style={styles.muted}>{label}</Text>
+     </View>
+@@ -367,7 +465,6 @@ const styles = StyleSheet.create({
+     alignItems: 'center',
+     justifyContent: 'center',
+   },
+-  bell: { fontSize: 24 },
+   badge: {
+     position: 'absolute',
+     top: -2,
+@@ -395,7 +492,8 @@ const styles = StyleSheet.create({
+     marginBottom: spacing.md,
+   },
+   programCard: { backgroundColor: '#FFF8F5', borderColor: colors.actionSoft },
+-  cardTitle: { ...type.h2, color: colors.textPrimary },
++  cardTitle: { ...type.h2, color: colors.textPrimary, flexShrink: 1 },
++  iconTitle: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+   muted: { ...type.caption, color: colors.textSecondary },
+   sectionTitle: { ...type.h2, color: colors.textPrimary, marginTop: spacing.xs, marginBottom: spacing.sm },
+   streakHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+@@ -415,10 +513,9 @@ const styles = StyleSheet.create({
+   },
+   check: { width: 36, height: 36, borderRadius: 18, borderWidth: 3, alignItems: 'center', justifyContent: 'center' },
+   checkDone: { backgroundColor: colors.motionSuccess, borderColor: colors.motionSuccess },
+-  checkMark: { color: colors.textOnDark, fontWeight: '800', fontSize: 18 },
++  manualCheck: { borderRadius: 10, borderColor: colors.primary },
+   rowTitle: { ...type.body, fontWeight: '700', color: colors.textPrimary, flexShrink: 1 },
+   rowDone: { color: colors.textSecondary },
+-  chevron: { fontSize: 34, color: colors.textSecondary },
+   statsRow: { flexDirection: 'row', gap: spacing.sm },
+   statTile: { flex: 1 },
+   statValue: { ...type.h1, color: colors.textPrimary, marginTop: 4 },
+diff --git a/src/screens/ExerciseScreen.tsx b/src/screens/ExerciseScreen.tsx
+index c0455e6..7b07c47 100644
+--- a/src/screens/ExerciseScreen.tsx
++++ b/src/screens/ExerciseScreen.tsx
+@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
+ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+ import { SafeAreaView } from 'react-native-safe-area-context';
+ import { useKeepAwake } from 'expo-keep-awake';
++import { Pause, Play, Smartphone, X } from 'lucide-react-native';
+ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+ import { RootStackParamList } from '../navigation/types';
+ import { Exercise } from '../types/exercise';
+@@ -188,7 +189,7 @@ function ExerciseSession({
+             />
+             {!demoPlaying && (
+               <View style={styles.playBadge}>
+-                <Text style={[styles.playIcon, { color: exercise.accentColor }]}>▶</Text>
++                <Play size={36} color={exercise.accentColor} fill={exercise.accentColor} style={styles.playIcon} accessible={false} />
+               </View>
+             )}
+             <View style={styles.demoLabel}>
+@@ -215,7 +216,7 @@ function ExerciseSession({
+           </View>
+ 
+           <View style={styles.tipBox} accessible accessibilityLabel={`Positioning tip. ${exercise.positioningTip}`}>
+-            <Text style={styles.tipIcon}>📱</Text>
++            <Smartphone size={30} color={colors.primary} strokeWidth={2.25} style={styles.tipIcon} accessible={false} />
+             <View style={{ flex: 1 }}>
+               <Text style={styles.tipTitle}>Positioning tip</Text>
+               <Text style={styles.tipBody}>{exercise.positioningTip}</Text>
+@@ -226,7 +227,9 @@ function ExerciseSession({
+         </ScrollView>
+         <View style={styles.footer}>
+           <BigButton
+-            label="▶  Start Exercise"
++            label="Start Exercise"
++            icon={Play}
++            iconFilled
+             onPress={() => {
+               setDemoPlaying(false);
+               start();
+@@ -329,7 +332,7 @@ function ExerciseSession({
+           </View>
+           {state.phase === 'active' && (
+             <Pressable accessibilityRole="button" accessibilityLabel="End exercise" onPress={confirmEnd} style={styles.closeButton} hitSlop={12}>
+-              <Text style={styles.closeText}>✕</Text>
++              <X size={30} color={colors.textOnDark} strokeWidth={3} accessible={false} />
+             </Pressable>
+           )}
+         </View>
+@@ -385,7 +388,9 @@ function ExerciseSession({
+             </View>
+             <View style={styles.activeBottom}>
+               <BigButton
+-                label="❚❚  Pause"
++                label="Pause"
++                icon={Pause}
++                iconFilled
+                 variant="outline"
+                 onPress={() => pause('user')}
+                 style={styles.outlineOnDark}
+@@ -425,7 +430,7 @@ const styles = StyleSheet.create({
+     alignItems: 'center',
+     justifyContent: 'center',
+   },
+-  playIcon: { fontSize: 36, marginLeft: 6 },
++  playIcon: { marginLeft: 6 },
+   demoLabel: {
+     position: 'absolute',
+     right: spacing.sm,
+@@ -451,7 +456,7 @@ const styles = StyleSheet.create({
+     padding: spacing.md,
+     marginTop: spacing.lg,
+   },
+-  tipIcon: { fontSize: 28 },
++  tipIcon: { marginTop: 2 },
+   tipTitle: { ...type.bodyLarge, color: colors.textPrimary },
+   tipBody: { ...type.body, color: colors.textSecondary, marginTop: 4 },
+   safety: { ...type.caption, color: colors.textSecondary, marginTop: spacing.md, textAlign: 'center' },
+@@ -468,7 +473,6 @@ const styles = StyleSheet.create({
+     alignItems: 'center',
+     justifyContent: 'center',
+   },
+-  closeText: { fontSize: 26, color: colors.textOnDark, fontWeight: '800' },
+   activeTop: { alignItems: 'center', paddingTop: spacing.sm, gap: spacing.sm },
+   repCountText: { ...type.h1, color: colors.textOnDark },
+   sensorCard: {
+diff --git a/src/screens/SensorCheckScreen.tsx b/src/screens/SensorCheckScreen.tsx
+index 5e8f482..3474530 100644
+--- a/src/screens/SensorCheckScreen.tsx
++++ b/src/screens/SensorCheckScreen.tsx
+@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
+ import { useKeepAwake } from 'expo-keep-awake';
+ import { Accelerometer, Gyroscope } from 'expo-sensors';
+ import Constants from 'expo-constants';
++import { Check, X } from 'lucide-react-native';
+ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+ import { RootStackParamList } from '../navigation/types';
+ import { BigButton } from '../components/BigButton';
+@@ -112,9 +113,16 @@ export function SensorCheckScreen({ navigation }: Props) {
+             const pass = r.accel.hz >= r.requestedHz * 0.9 && r.gyro.hz >= r.requestedHz * 0.9;
+             return (
+               <View key={r.requestedHz} style={[styles.card, { borderColor: pass ? colors.motionSuccess : colors.danger }]}>
+-                <Text style={styles.cardTitle}>
+-                  {r.requestedHz} Hz requested — {pass ? 'OK ✓' : 'too slow ✕'}
+-                </Text>
++                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
++                  <Text style={styles.cardTitle}>
++                    {r.requestedHz} Hz requested — {pass ? 'OK' : 'too slow'}
++                  </Text>
++                  {pass ? (
++                    <Check size={22} color={colors.motionSuccess} strokeWidth={3} accessible={false} />
++                  ) : (
++                    <X size={22} color={colors.danger} strokeWidth={3} accessible={false} />
++                  )}
++                </View>
+                 {(['accel', 'gyro'] as const).map((k) => (
+                   <Text key={k} style={styles.mono}>
+                     {k === 'accel' ? 'Accelerometer' : 'Gyroscope    '}: {r[k].hz} Hz · avg {r[k].meanIntervalMs} ms · jitter{' '}

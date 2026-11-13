@@ -7,7 +7,9 @@ import {
   ArrowUp,
   CalendarCheck,
   Check,
+  ClipboardCheck,
   Flame,
+  Pencil,
   Plus,
   RotateCw,
   Search,
@@ -24,30 +26,72 @@ import {
   formatDays,
   formatShortDate,
   getPatientProgram,
+  isManualExercise,
   listLibrary,
+  MANUAL_INSTRUCTIONS_MAX,
+  MANUAL_NAME_MAX,
   savePatientProgram,
 } from '../lib/api';
-import type { PatientProgram, ProgramExercise } from '../lib/api';
+import type { PatientProgram, ProgramExercise, ProgramItemInput } from '../lib/api';
 
 const AREA_ORDER = ['Shoulder', 'Elbow & Wrist', 'Back & Core', 'Hip', 'Knee', 'Ankle & Foot'];
 const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
 const MAX_SETS = 10;
 const MAX_REPS = 50;
 
+interface ManualFields {
+  name: string;
+  instructions: string;
+}
+
+/**
+ * One row of the program being edited. A library exercise has `exercise`; a manual (check-off) activity
+ * has `manual`, plus `exercise` once it has been saved (its private exercises row).
+ */
 interface DraftItem {
-  exercise: ProgramExercise;
+  key: string;
+  exercise: ProgramExercise | null;
+  manual: ManualFields | null;
   sets: number;
   reps: number;
   days: number[];
 }
 
+let newKey = 0;
+const nextKey = () => `new-${++newKey}`;
+
+function itemName(i: DraftItem): string {
+  return i.manual?.name || i.exercise?.name || 'Activity';
+}
+
 function toDraft(data: PatientProgram): DraftItem[] {
-  return data.program.map((p) => ({ exercise: p.exercise, sets: p.sets, reps: p.reps, days: [...p.days_of_week] }));
+  return data.program.map((p) => ({
+    key: p.exercise.id,
+    exercise: p.exercise,
+    manual: isManualExercise(p.exercise) ? { name: p.exercise.name, instructions: p.exercise.description ?? '' } : null,
+    sets: p.sets,
+    reps: p.reps,
+    days: [...p.days_of_week],
+  }));
 }
 
 function sameDraft(a: DraftItem[], b: DraftItem[]): boolean {
-  return JSON.stringify(a.map((i) => [i.exercise.id, i.sets, i.reps, [...i.days].sort()])) ===
-    JSON.stringify(b.map((i) => [i.exercise.id, i.sets, i.reps, [...i.days].sort()]));
+  const sig = (d: DraftItem[]) =>
+    JSON.stringify(d.map((i) => [i.key, i.manual?.name, i.manual?.instructions, i.sets, i.reps, [...i.days].sort()]));
+  return sig(a) === sig(b);
+}
+
+function toInput(i: DraftItem): ProgramItemInput {
+  if (i.manual) {
+    return {
+      ...(i.exercise ? { exercise_id: i.exercise.id } : {}),
+      manual: { name: i.manual.name.trim(), instructions: i.manual.instructions.trim() },
+      sets: 1,
+      reps: 1,
+      days_of_week: i.days,
+    };
+  }
+  return { exercise_id: i.exercise!.id, sets: i.sets, reps: i.reps, days_of_week: i.days };
 }
 
 function clamp(n: number, lo: number, hi: number) {
@@ -69,6 +113,8 @@ export function PatientDetailPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [adding, setAdding] = useState(false);
+  // index of the manual activity being edited, or 'new' while adding one
+  const [editingManual, setEditingManual] = useState<number | 'new' | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,7 +145,7 @@ export function PatientDetailPage() {
 
   const [todayDow] = useState(() => new Date().getDay());
   const dueToday = draft.filter((i) => i.days.includes(todayDow)).length;
-  const draftMinutes = draft.reduce((m, i) => m + (i.exercise.est_minutes ?? 5), 0);
+  const draftMinutes = draft.reduce((m, i) => m + (i.exercise?.est_minutes ?? 5), 0);
 
   function update(index: number, change: Partial<DraftItem>) {
     setNotice(null);
@@ -131,7 +177,9 @@ export function PatientDetailPage() {
     setDraft((d) => [
       ...d,
       {
+        key: ex.id,
         exercise: ex,
+        manual: null,
         sets: ex.default_sets,
         reps: ex.default_reps,
         // New exercises follow the schedule of the last one added, or every day for a new program.
@@ -140,10 +188,31 @@ export function PatientDetailPage() {
     ]);
   }
 
+  function saveManual(fields: ManualFields) {
+    if (editingManual === 'new') {
+      setNotice(null);
+      setDraft((d) => [
+        ...d,
+        {
+          key: nextKey(),
+          exercise: null,
+          manual: fields,
+          sets: 1,
+          reps: 1,
+          days: d.length ? [...d[d.length - 1].days] : [...EVERY_DAY],
+        },
+      ]);
+    } else if (editingManual !== null) {
+      update(editingManual, { manual: fields });
+    }
+    setEditingManual(null);
+  }
+
   const validation = useMemo(() => {
-    if (draft.length === 0) return 'Add at least one exercise before saving.';
+    if (draft.length === 0) return 'Add at least one exercise or activity before saving.';
     const noDays = draft.find((i) => i.days.length === 0);
-    if (noDays) return `Pick at least one day for ${noDays.exercise.name}.`;
+    if (noDays) return `Pick at least one day for ${itemName(noDays)}.`;
+    if (draft.some((i) => i.manual && !i.manual.name.trim())) return 'Give every manual activity a name.';
     return null;
   }, [draft]);
 
@@ -156,7 +225,7 @@ export function PatientDetailPage() {
     setError(null);
     const { data: d, error: e } = await savePatientProgram(
       patientId,
-      draft.map((i) => ({ exercise_id: i.exercise.id, sets: i.sets, reps: i.reps, days_of_week: i.days })),
+      draft.map(toInput),
     );
     setSaving(false);
     if (e || !d) {
@@ -256,90 +325,126 @@ export function PatientDetailPage() {
                 : `${draft.length} exercise${draft.length === 1 ? '' : 's'} · ~${draftMinutes} min per full session · ${dueToday} due today (${DAY_NAMES[todayDow]})`}
             </p>
           </div>
-          <button className="btn-secondary" onClick={() => setAdding(true)}>
-            <Plus size={15} />
-            Add exercise
-          </button>
+          <div className="row-actions">
+            <button className="btn-secondary" onClick={() => setEditingManual('new')}>
+              <ClipboardCheck size={15} />
+              Add manual activity
+            </button>
+            <button className="btn-secondary" onClick={() => setAdding(true)}>
+              <Plus size={15} />
+              Add exercise
+            </button>
+          </div>
         </div>
 
         {draft.length === 0 ? (
           <div className="program-empty">
             <p>Build {data.patient.name.split(' ')[0]}'s home program from the motion-tracked exercise library.</p>
-            <button className="btn-accent" onClick={() => setAdding(true)}>
-              <Plus size={16} />
-              Add the first exercise
-            </button>
+            <div className="row-actions" style={{ justifyContent: 'center' }}>
+              <button className="btn-accent" onClick={() => setAdding(true)}>
+                <Plus size={16} />
+                Add the first exercise
+              </button>
+              <button className="btn-secondary" onClick={() => setEditingManual('new')}>
+                <ClipboardCheck size={16} />
+                Add a manual activity
+              </button>
+            </div>
           </div>
         ) : (
           <ol className="program-list">
-            {draft.map((item, i) => (
-              <li key={item.exercise.id} className="program-row">
-                <span className="program-swatch" style={{ background: item.exercise.accent_color ?? 'var(--teal)' }} />
-                <div className="program-name">
-                  <div className="program-title">
-                    {item.exercise.name}
-                    {item.days.includes(todayDow) ? <span className="pill pill-success pill-tiny">Today</span> : null}
-                  </div>
-                  <div className="cell-sub">
-                    {item.exercise.sensor_mode === 'tilt' ? <Activity size={12} /> : <RotateCw size={12} />}{' '}
-                    {item.exercise.body_area} · {item.exercise.sensor_mode === 'tilt' ? 'tilt tracked' : 'rotation tracked'} ·{' '}
-                    {formatDays(item.days)}
-                  </div>
-                </div>
-
-                <label className="num-field">
-                  <span>Sets</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={MAX_SETS}
-                    value={item.sets}
-                    aria-label={`${item.exercise.name} sets`}
-                    onChange={(e) => update(i, { sets: clamp(Number(e.target.value) || 1, 1, MAX_SETS) })}
+            {draft.map((item, i) => {
+              const name = itemName(item);
+              const ex = item.exercise;
+              return (
+                <li key={item.key} className={`program-row${item.manual ? ' program-row-manual' : ''}`}>
+                  <span
+                    className="program-swatch"
+                    style={{ background: item.manual ? 'var(--accent)' : (ex?.accent_color ?? 'var(--teal)') }}
                   />
-                </label>
-                <span className="times">×</span>
-                <label className="num-field">
-                  <span>Reps</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={MAX_REPS}
-                    value={item.reps}
-                    aria-label={`${item.exercise.name} reps`}
-                    onChange={(e) => update(i, { reps: clamp(Number(e.target.value) || 1, 1, MAX_REPS) })}
-                  />
-                </label>
+                  <div className="program-name">
+                    <div className="program-title">
+                      {name}
+                      {item.days.includes(todayDow) ? <span className="pill pill-success pill-tiny">Today</span> : null}
+                    </div>
+                    <div className="cell-sub">
+                      {item.manual ? (
+                        <>
+                          <ClipboardCheck size={12} /> Manual activity · patient checks it off · {formatDays(item.days)}
+                        </>
+                      ) : (
+                        <>
+                          {ex?.sensor_mode === 'tilt' ? <Activity size={12} /> : <RotateCw size={12} />} {ex?.body_area} ·{' '}
+                          {ex?.sensor_mode === 'tilt' ? 'tilt tracked' : 'rotation tracked'} · {formatDays(item.days)}
+                        </>
+                      )}
+                    </div>
+                    {item.manual?.instructions ? <div className="manual-notes">{item.manual.instructions}</div> : null}
+                  </div>
 
-                <div className="day-toggles" role="group" aria-label={`${item.exercise.name} days`}>
-                  {DAY_LETTERS.map((letter, d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      className={`day-toggle${item.days.includes(d) ? ' day-toggle-on' : ''}`}
-                      aria-pressed={item.days.includes(d)}
-                      aria-label={DAY_NAMES[d]}
-                      title={DAY_NAMES[d]}
-                      onClick={() => toggleDay(i, d)}
-                    >
-                      {letter}
+                  {item.manual ? (
+                    <button type="button" className="btn-secondary btn-small" onClick={() => setEditingManual(i)}>
+                      <Pencil size={14} />
+                      Edit
                     </button>
-                  ))}
-                </div>
+                  ) : (
+                    <>
+                      <label className="num-field">
+                        <span>Sets</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={MAX_SETS}
+                          value={item.sets}
+                          aria-label={`${name} sets`}
+                          onChange={(e) => update(i, { sets: clamp(Number(e.target.value) || 1, 1, MAX_SETS) })}
+                        />
+                      </label>
+                      <span className="times">×</span>
+                      <label className="num-field">
+                        <span>Reps</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={MAX_REPS}
+                          value={item.reps}
+                          aria-label={`${name} reps`}
+                          onChange={(e) => update(i, { reps: clamp(Number(e.target.value) || 1, 1, MAX_REPS) })}
+                        />
+                      </label>
+                    </>
+                  )}
 
-                <div className="row-actions">
-                  <button className="icon-btn" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up">
-                    <ArrowUp size={15} />
-                  </button>
-                  <button className="icon-btn" onClick={() => move(i, 1)} disabled={i === draft.length - 1} aria-label="Move down">
-                    <ArrowDown size={15} />
-                  </button>
-                  <button className="icon-btn icon-btn-danger" onClick={() => remove(i)} aria-label={`Remove ${item.exercise.name}`}>
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              </li>
-            ))}
+                  <div className="day-toggles" role="group" aria-label={`${name} days`}>
+                    {DAY_LETTERS.map((letter, d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        className={`day-toggle${item.days.includes(d) ? ' day-toggle-on' : ''}`}
+                        aria-pressed={item.days.includes(d)}
+                        aria-label={DAY_NAMES[d]}
+                        title={DAY_NAMES[d]}
+                        onClick={() => toggleDay(i, d)}
+                      >
+                        {letter}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="row-actions">
+                    <button className="icon-btn" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up">
+                      <ArrowUp size={15} />
+                    </button>
+                    <button className="icon-btn" onClick={() => move(i, 1)} disabled={i === draft.length - 1} aria-label="Move down">
+                      <ArrowDown size={15} />
+                    </button>
+                    <button className="icon-btn icon-btn-danger" onClick={() => remove(i)} aria-label={`Remove ${name}`}>
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         )}
         {dirty ? <p className="section-foot">Unsaved changes. They apply from today once you save.</p> : null}
@@ -356,7 +461,8 @@ export function PatientDetailPage() {
           <ul className="simple-list">
             {data.other_programs.map((p) => (
               <li key={p.plan_id}>
-                <strong>{p.exercise.name}</strong> · {p.sets} × {p.reps} · {formatDays(p.days_of_week)}
+                <strong>{p.exercise.name}</strong> ·{' '}
+                {isManualExercise(p.exercise) ? 'manual check-off' : `${p.sets} × ${p.reps}`} · {formatDays(p.days_of_week)}
                 <span className="cell-sub"> — {p.therapist_name}</span>
               </li>
             ))}
@@ -368,7 +474,7 @@ export function PatientDetailPage() {
         <div className="section-head">
           <div>
             <h2>Recent sessions</h2>
-            <p className="section-sub">Recorded by the patient's iPhone during each exercise.</p>
+            <p className="section-sub">Recorded by the patient's iPhone during each exercise, plus manual activities they checked off.</p>
           </div>
         </div>
         {data.recent_sessions.length === 0 ? (
@@ -391,14 +497,14 @@ export function PatientDetailPage() {
                   <td>{formatShortDate(s.local_date)}</td>
                   <td>{s.exercise_name}</td>
                   <td>
-                    {s.reps_completed ?? '—'}
-                    {s.target_reps_total ? ` / ${s.target_reps_total}` : ''}
+                    {s.manual ? '—' : (s.reps_completed ?? '—')}
+                    {!s.manual && s.target_reps_total ? ` / ${s.target_reps_total}` : ''}
                   </td>
                   <td>{s.avg_rom_degrees === null ? '—' : `${Math.round(s.avg_rom_degrees)}°`}</td>
                   <td>{s.duration_seconds === null ? '—' : `${Math.floor(s.duration_seconds / 60)}:${String(s.duration_seconds % 60).padStart(2, '0')}`}</td>
                   <td>
                     <span className={`pill ${s.completed ? 'pill-success' : 'pill-warning'}`}>
-                      {s.completed ? 'Completed' : 'Ended early'}
+                      {s.manual ? 'Checked off' : s.completed ? 'Completed' : 'Ended early'}
                     </span>
                   </td>
                 </tr>
@@ -411,9 +517,17 @@ export function PatientDetailPage() {
       {adding ? (
         <AddExerciseModal
           library={library}
-          chosen={new Set(draft.map((i) => i.exercise.id))}
+          chosen={new Set(draft.flatMap((i) => (i.exercise && !i.manual ? [i.exercise.id] : [])))}
           onAdd={add}
           onClose={() => setAdding(false)}
+        />
+      ) : null}
+      {editingManual !== null ? (
+        <ManualActivityModal
+          initial={editingManual === 'new' ? null : draft[editingManual]?.manual ?? null}
+          patientFirstName={data.patient.name.split(' ')[0]}
+          onSave={saveManual}
+          onClose={() => setEditingManual(null)}
         />
       ) : null}
     </AppShell>
@@ -502,6 +616,77 @@ function AddExerciseModal({
           Done
         </button>
       </div>
+    </Modal>
+  );
+}
+
+/**
+ * Add or edit a manual activity: anything the app can't motion-track (a walk, a stretch with a band,
+ * icing). The patient sees it in Today's Program and just ticks it off.
+ */
+function ManualActivityModal({
+  initial,
+  patientFirstName,
+  onSave,
+  onClose,
+}: {
+  initial: ManualFields | null;
+  patientFirstName: string;
+  onSave: (fields: ManualFields) => void;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(initial?.name ?? '');
+  const [instructions, setInstructions] = useState(initial?.instructions ?? '');
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onSave({ name: name.trim(), instructions: instructions.trim() });
+  }
+
+  return (
+    <Modal title={initial ? 'Edit manual activity' : 'Add a manual activity'} onClose={onClose}>
+      <form onSubmit={submit}>
+        <p className="modal-text">
+          For anything the app doesn't track with motion sensors. {patientFirstName} will see it in Today's Program and
+          check it off once it's done.
+        </p>
+        <div className="field">
+          <label htmlFor="manual-name">Activity</label>
+          <input
+            id="manual-name"
+            required
+            autoFocus
+            maxLength={MANUAL_NAME_MAX}
+            placeholder="e.g. Walk for 10 minutes"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="manual-instructions">Instructions (optional)</label>
+          <textarea
+            id="manual-instructions"
+            rows={4}
+            maxLength={MANUAL_INSTRUCTIONS_MAX}
+            placeholder="e.g. Green band, 3 sets of 12. Keep your elbows close to your sides."
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+          />
+          <div className="field-hint">
+            {instructions.length}/{MANUAL_INSTRUCTIONS_MAX}
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn-accent" disabled={!name.trim()}>
+            <Check size={15} />
+            {initial ? 'Update activity' : 'Add activity'}
+          </button>
+        </div>
+      </form>
     </Modal>
   );
 }
