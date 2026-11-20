@@ -1,5 +1,5 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { NativeSyntheticEvent, Pressable, StyleSheet, Text, TextLayoutEventData, View, ViewStyle } from 'react-native';
 import type { LucideIcon } from 'lucide-react-native';
 import { colors, minTouchTarget, radii, spacing, type } from '../theme/theme';
 
@@ -34,6 +34,16 @@ export function BigButton({
   icon: Icon,
   iconFilled = false,
 }: Props) {
+  // A wrapped <Text> keeps the full row width, so icon + label won't centre as a block. Measure the
+  // wrapped lines once and shrink the label to the widest one. Reset when the label changes.
+  const [fitWidth, setFitWidth] = useState<number | undefined>(undefined);
+  useEffect(() => setFitWidth(undefined), [label]);
+  const onTextLayout = (e: NativeSyntheticEvent<TextLayoutEventData>) => {
+    const lines = e.nativeEvent.lines;
+    if (!Icon || fitWidth !== undefined || lines.length < 2) return;
+    setFitWidth(Math.ceil(Math.max(...lines.map((l) => l.width))) + 1);
+  };
+
   const bg = disabled
     ? colors.disabled
     : variant === 'primary'
@@ -59,10 +69,26 @@ export function BigButton({
         style,
       ]}
     >
-      <View>
+      <View style={styles.content}>
         <View style={styles.labelRow}>
-          {Icon ? <Icon size={24} color={textColor} strokeWidth={2.5} fill={iconFilled ? textColor : 'none'} accessible={false} /> : null}
-          <Text style={[styles.label, { color: textColor }]}>{label}</Text>
+          {Icon ? (
+            <Icon
+              size={26}
+              color={textColor}
+              strokeWidth={2.5}
+              fill={iconFilled ? textColor : 'none'}
+              style={styles.icon}
+              accessible={false}
+            />
+          ) : null}
+          {/* With an icon, the label wraps beside it (left-aligned, shrink-wrapped by onTextLayout) so
+              icon + text stay one centred block instead of the icon drifting off when a long label wraps. */}
+          <Text
+            onTextLayout={onTextLayout}
+            style={[styles.label, Icon ? styles.labelWithIcon : null, fitWidth ? { width: fitWidth } : null, { color: textColor }]}
+          >
+            {label}
+          </Text>
         </View>
         {subLabel ? <Text style={[styles.subLabel, { color: textColor }]}>{subLabel}</Text> : null}
       </View>
@@ -83,7 +109,10 @@ const styles = StyleSheet.create({
   outlineBorder: {
     borderWidth: 3,
   },
-  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
+  content: { maxWidth: '100%' },
+  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm, maxWidth: '100%' },
+  icon: { flexShrink: 0 },
+  labelWithIcon: { flexShrink: 1, textAlign: 'left' },
   label: {
     ...type.button,
     textAlign: 'center',

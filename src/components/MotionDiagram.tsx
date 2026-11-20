@@ -1,7 +1,8 @@
 import React from 'react';
-import Svg, { Circle, Line, Rect, G, Path } from 'react-native-svg';
+import Svg, { Circle, Line, Rect, G, Path, Polygon, Text as SvgText } from 'react-native-svg';
 import { DiagramKind } from '../types/exercise';
 import { colors } from '../theme/theme';
+import { figureFor, Figure, Tone } from './figures/poses';
 
 interface Props {
   kind: DiagramKind;
@@ -14,6 +15,13 @@ interface Props {
   size?: number;
   /** 'dial' only: where the target tick sits (degrees). Omit for a full-circle rotation dial. */
   targetDeg?: number;
+  /**
+   * Library slug (Exercise.id). When there's a person figure for it, that's drawn instead of the generic
+   * shape for `kind`, so the patient can see what their body should be doing.
+   */
+  exerciseId?: string;
+  /** Rotation exercises that go out and back (not full circles): degrees that count as fully turned. */
+  targetRotationDeg?: number;
 }
 
 const VB = 300;
@@ -172,7 +180,110 @@ function DialFigure({ angleDeg, accentColor, targetDeg }: { angleDeg: number; ac
   );
 }
 
-export function MotionDiagram({ kind, angleDeg, accentColor, size = 260, targetDeg }: Props) {
+/** How each part of a person figure is painted, relative to the colour it's drawn in. */
+function toneStyle(tone: Tone, accent: string) {
+  switch (tone) {
+    case 'move':
+      return { color: accent, opacity: 1 };
+    case 'body':
+      return { color: accent, opacity: 0.55 };
+    case 'far':
+      return { color: accent, opacity: 0.3 };
+    case 'prop':
+      return { color: '#000000', opacity: 0.25 };
+    case 'guide':
+      return { color: accent, opacity: 0.6 };
+    case 'phone':
+      return { color: colors.textPrimary, opacity: 1 };
+  }
+}
+
+function PersonFigure({ figure, accentColor }: { figure: Figure; accentColor: string }) {
+  return (
+    <G>
+      {figure.shapes.map((s, i) => {
+        const { color, opacity } = toneStyle(s.tone, accentColor);
+        switch (s.kind) {
+          case 'line':
+            return (
+              <Line
+                key={i}
+                x1={s.a.x}
+                y1={s.a.y}
+                x2={s.b.x}
+                y2={s.b.y}
+                stroke={color}
+                strokeOpacity={opacity}
+                strokeWidth={s.w}
+                strokeLinecap="round"
+              />
+            );
+          case 'circle':
+            return <Circle key={i} cx={s.c.x} cy={s.c.y} r={s.r} fill={color} fillOpacity={opacity} />;
+          case 'poly':
+            return (
+              <Polygon
+                key={i}
+                points={s.pts.map((q) => `${q.x},${q.y}`).join(' ')}
+                fill={color}
+                fillOpacity={opacity}
+                stroke={s.tone === 'phone' ? accentColor : undefined}
+                strokeWidth={s.tone === 'phone' ? 3 : 0}
+                strokeLinejoin="round"
+              />
+            );
+          case 'path':
+            return (
+              <Path
+                key={i}
+                d={s.d}
+                fill="none"
+                stroke={color}
+                strokeOpacity={opacity}
+                strokeWidth={s.w}
+                strokeDasharray={s.tone === 'guide' ? '8,8' : undefined}
+                strokeLinecap="round"
+              />
+            );
+          case 'text':
+            return (
+              <SvgText
+                key={i}
+                x={s.p.x}
+                y={s.p.y}
+                fill={accentColor}
+                fillOpacity={0.85}
+                fontSize={17}
+                fontWeight="700"
+                textAnchor="middle"
+              >
+                {s.text}
+              </SvgText>
+            );
+        }
+      })}
+    </G>
+  );
+}
+
+export function MotionDiagram({ kind, angleDeg, accentColor, size = 260, targetDeg, exerciseId, targetRotationDeg }: Props) {
+  if (exerciseId) {
+    const looping = kind === 'circle-shoulder' || kind === 'circle-wrist';
+    const t = looping
+      ? 0
+      : targetDeg !== undefined
+      ? angleDeg / Math.max(1, targetDeg)
+      : angleDeg / Math.max(1, targetRotationDeg ?? 90);
+    const figure = figureFor(exerciseId, { t, theta: looping ? angleDeg % 360 : 0 });
+    if (figure) {
+      const vb = figure.viewBox ?? [0, 0, VB, VB];
+      return (
+        <Svg width={size} height={size} viewBox={vb.join(' ')}>
+          <PersonFigure figure={figure} accentColor={accentColor} />
+        </Svg>
+      );
+    }
+  }
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${VB} ${VB}`}>
       {kind === 'raise-front' && <FrontRaiseFigure angleDeg={angleDeg} accentColor={accentColor} />}

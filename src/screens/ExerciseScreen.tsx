@@ -68,8 +68,12 @@ function useDemoAngle(exercise: Exercise, playing: boolean): number {
     if (!playing) return;
     const id = setInterval(() => {
       t.current += 0.05;
-      if (exercise.sensorMode === 'rotation') setAngle((a) => (a + 6) % 360);
-      else setAngle(((1 - Math.cos(t.current * 2.2)) / 2) * (exercise.targetAngleDeg ?? 60));
+      const swing = (1 - Math.cos(t.current * 2.2)) / 2; // 0 → 1 → 0, slow at the ends
+      const loops = exercise.diagram === 'circle-shoulder' || exercise.diagram === 'circle-wrist';
+      if (loops) setAngle((a) => (a + 6) % 360);
+      // out-and-back rotations (forearm out, trunk twist) swing to the target and back, like tilt ones
+      else if (exercise.sensorMode === 'rotation') setAngle(swing * (exercise.targetRotationDeg ?? 90));
+      else setAngle(swing * (exercise.targetAngleDeg ?? 60));
     }, 50);
     return () => clearInterval(id);
   }, [playing, exercise]);
@@ -186,6 +190,8 @@ function ExerciseSession({
               accentColor={colors.textOnDark}
               size={220}
               targetDeg={dialTarget}
+              exerciseId={exercise.id}
+              targetRotationDeg={exercise.targetRotationDeg}
             />
             {!demoPlaying && (
               <View style={styles.playBadge}>
@@ -247,7 +253,14 @@ function ExerciseSession({
         <View style={styles.centered}>
           <Text style={[type.h1, styles.onDark]}>Hold Still</Text>
           <View style={{ height: spacing.md }} />
-          <MotionDiagram kind={exercise.diagram} angleDeg={0} accentColor={colors.textOnDark} targetDeg={dialTarget} />
+          <MotionDiagram
+            kind={exercise.diagram}
+            angleDeg={0}
+            accentColor={colors.textOnDark}
+            targetDeg={dialTarget}
+            exerciseId={exercise.id}
+            targetRotationDeg={exercise.targetRotationDeg}
+          />
           <View style={{ height: spacing.md }} />
           <Text style={[type.giant, styles.onDark]}>{state.calibrationCountdown}</Text>
           <Text style={[type.body, styles.onDark, { textAlign: 'center' }]}>{exercise.positioningTip}</Text>
@@ -357,6 +370,8 @@ function ExerciseSession({
                 accentColor={colors.textOnDark}
                 size={220}
                 targetDeg={dialTarget}
+                exerciseId={exercise.id}
+                targetRotationDeg={exercise.targetRotationDeg}
               />
               <View style={{ height: spacing.sm }} />
               <Text style={[type.h2, styles.onDark, { textAlign: 'center' }]}>{activeInstruction(exercise, state)}</Text>
